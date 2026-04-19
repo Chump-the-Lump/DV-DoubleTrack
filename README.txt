@@ -8,7 +8,7 @@ The code you are about to witness is an absolute cluster fuck. I would not wish 
 • Double Track added to the valley
 
 :: GENERAL OTHER STUFF ::
-• Works with Multi-player Mod
+• Works with Multi-player Mod and Remote Dispatch
 
 ::  KNOWN ISSUES ::
 • The code is a cluster fuck
