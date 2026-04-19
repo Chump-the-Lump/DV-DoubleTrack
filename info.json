@@ -1,0 +1,8 @@
+{
+  "Id": "DoubleTrack",
+  "DisplayName": "Double Track",
+  "Author": "Chump_the_Lump",
+  "Version": "0.0.0",
+  "AssemblyName": "DoubleTrack.dll",
+  "EntryMethod": "DoubleTrack.TrackPlacerEntry.Load"
+  }

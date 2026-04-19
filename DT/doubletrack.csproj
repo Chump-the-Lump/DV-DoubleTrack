@@ -1,0 +1,764 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net48</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>10</LangVersion>
+        <AssemblyName>DoubleTrack</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Reference Include="0Harmony">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityModManager\0Harmony.dll</HintPath>
+      </Reference>
+      <Reference Include="Accessibility">
+        <HintPath>..\..\DerailValley_Data\Managed\Accessibility.dll</HintPath>
+      </Reference>
+      <Reference Include="Amplify.Occlusion">
+        <HintPath>..\..\DerailValley_Data\Managed\Amplify.Occlusion.dll</HintPath>
+      </Reference>
+      <Reference Include="Antlr3.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\Antlr3.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="Assembly-CSharp">
+        <HintPath>..\..\DerailValley_Data\Managed\Assembly-CSharp.dll</HintPath>
+      </Reference>
+      <Reference Include="AwesomeTechnologies.TouchReactSystemPro.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\AwesomeTechnologies.TouchReactSystemPro.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="AwesomeTechnologies.VegetationStudioPro.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\AwesomeTechnologies.VegetationStudioPro.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="BakeryRuntimeAssembly">
+        <HintPath>..\..\DerailValley_Data\Managed\BakeryRuntimeAssembly.dll</HintPath>
+      </Reference>
+      <Reference Include="BezierCurves">
+        <HintPath>..\..\DerailValley_Data\Managed\BezierCurves.dll</HintPath>
+      </Reference>
+      <Reference Include="Bolt.Core.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\Bolt.Core.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="Bolt.Flow.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\Bolt.Flow.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="Bolt.State.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\Bolt.State.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="CommandTerminal">
+        <HintPath>..\..\DerailValley_Data\Managed\CommandTerminal.dll</HintPath>
+      </Reference>
+      <Reference Include="CTNAudio">
+        <HintPath>..\..\DerailValley_Data\Managed\CTNAudio.dll</HintPath>
+      </Reference>
+      <Reference Include="CTNLayer">
+        <HintPath>..\..\DerailValley_Data\Managed\CTNLayer.dll</HintPath>
+      </Reference>
+      <Reference Include="CTNVorbis">
+        <HintPath>..\..\DerailValley_Data\Managed\CTNVorbis.dll</HintPath>
+      </Reference>
+      <Reference Include="CTUDE">
+        <HintPath>..\..\DerailValley_Data\Managed\CTUDE.dll</HintPath>
+      </Reference>
+      <Reference Include="CurvedTextMeshPro">
+        <HintPath>..\..\DerailValley_Data\Managed\CurvedTextMeshPro.dll</HintPath>
+      </Reference>
+      <Reference Include="DelaunatorSharp">
+        <HintPath>..\..\DerailValley_Data\Managed\DelaunatorSharp.dll</HintPath>
+      </Reference>
+      <Reference Include="DelaunatorSharp.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\DelaunatorSharp.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="DelaunayER">
+        <HintPath>..\..\DerailValley_Data\Managed\DelaunayER.dll</HintPath>
+      </Reference>
+      <Reference Include="dnlib">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityModManager\dnlib.dll</HintPath>
+      </Reference>
+      <Reference Include="dv-raildriver">
+        <HintPath>..\..\DerailValley_Data\Managed\dv-raildriver.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.BrakeSystem">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.BrakeSystem.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.BuildInfo">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.BuildInfo.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.CabControls.Spec">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.CabControls.Spec.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.CableMaker">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.CableMaker.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.CharacterController">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.CharacterController.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Common">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Common.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.ControllerAnchors">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.ControllerAnchors.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.DistantTerrain">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.DistantTerrain.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Highlighting">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Highlighting.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Interaction">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Interaction.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Inventory">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Inventory.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.LayeredAudio">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.LayeredAudio.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Layers">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Layers.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.LightingKludge">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.LightingKludge.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Localization">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Localization.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.MeshX">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.MeshX.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.NAudio">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.NAudio.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.OriginShiftInfo">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.OriginShiftInfo.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Platform.GeForceNOW">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Platform.GeForceNOW.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Platform.Steam">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Platform.Steam.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Platform.SteamVR">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Platform.SteamVR.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Platform.Windows">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Platform.Windows.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.PointSet">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.PointSet.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Preferences">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Preferences.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.RadioPlayer">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.RadioPlayer.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.RailTrack">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.RailTrack.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.ReflectionProbes">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.ReflectionProbes.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Scenarios.CRUD">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Scenarios.CRUD.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.ShaderStripper">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.ShaderStripper.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.SignPlacer">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.SignPlacer.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.SignPlacer.Utils">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.SignPlacer.Utils.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Simulation">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Simulation.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.SpriteLights">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.SpriteLights.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Telemetry">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Telemetry.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.TerrainSystem">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.TerrainSystem.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.TerrainTools">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.TerrainTools.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.ThingTypes">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.ThingTypes.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.TimeBasedEvents">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.TimeBasedEvents.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.UI">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.UI.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.UIFramework">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.UIFramework.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.UserManagement">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.UserManagement.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Utils">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Utils.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.Utils.ECS">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.Utils.ECS.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.WeatherSystem">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.WeatherSystem.dll</HintPath>
+      </Reference>
+      <Reference Include="DV.WorldTools.Runtime.Common">
+        <HintPath>..\..\DerailValley_Data\Managed\DV.WorldTools.Runtime.Common.dll</HintPath>
+      </Reference>
+      <Reference Include="EasyRoads3Dv3">
+        <HintPath>..\..\DerailValley_Data\Managed\EasyRoads3Dv3.dll</HintPath>
+      </Reference>
+      <Reference Include="Facepunch.Steamworks.Win64">
+        <HintPath>..\..\DerailValley_Data\Managed\Facepunch.Steamworks.Win64.dll</HintPath>
+      </Reference>
+      <Reference Include="FantasticSSRWater">
+        <HintPath>..\..\DerailValley_Data\Managed\FantasticSSRWater.dll</HintPath>
+      </Reference>
+      <Reference Include="I18N">
+        <HintPath>..\..\DerailValley_Data\Managed\I18N.dll</HintPath>
+      </Reference>
+      <Reference Include="I18N.CJK">
+        <HintPath>..\..\DerailValley_Data\Managed\I18N.CJK.dll</HintPath>
+      </Reference>
+      <Reference Include="I18N.MidEast">
+        <HintPath>..\..\DerailValley_Data\Managed\I18N.MidEast.dll</HintPath>
+      </Reference>
+      <Reference Include="I18N.Other">
+        <HintPath>..\..\DerailValley_Data\Managed\I18N.Other.dll</HintPath>
+      </Reference>
+      <Reference Include="I18N.Rare">
+        <HintPath>..\..\DerailValley_Data\Managed\I18N.Rare.dll</HintPath>
+      </Reference>
+      <Reference Include="I18N.West">
+        <HintPath>..\..\DerailValley_Data\Managed\I18N.West.dll</HintPath>
+      </Reference>
+      <Reference Include="I2.Localization">
+        <HintPath>..\..\DerailValley_Data\Managed\I2.Localization.dll</HintPath>
+      </Reference>
+      <Reference Include="IMColorPicker">
+        <HintPath>..\..\DerailValley_Data\Managed\IMColorPicker.dll</HintPath>
+      </Reference>
+      <Reference Include="INIFileParser">
+        <HintPath>..\..\DerailValley_Data\Managed\INIFileParser.dll</HintPath>
+      </Reference>
+      <Reference Include="JBooth.MicroSplat.Core">
+        <HintPath>..\..\DerailValley_Data\Managed\JBooth.MicroSplat.Core.dll</HintPath>
+      </Reference>
+      <Reference Include="LINQtoGameObject">
+        <HintPath>..\..\DerailValley_Data\Managed\LINQtoGameObject.dll</HintPath>
+      </Reference>
+      <Reference Include="Ludiq.Core.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\Ludiq.Core.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="Ludiq.Graphs.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\Ludiq.Graphs.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="Microsoft.CSharp">
+        <HintPath>..\..\DerailValley_Data\Managed\Microsoft.CSharp.dll</HintPath>
+      </Reference>
+      <Reference Include="MiscUtil">
+        <HintPath>..\..\DerailValley_Data\Managed\MiscUtil.dll</HintPath>
+      </Reference>
+      <Reference Include="Mono.Data.Sqlite">
+        <HintPath>..\..\DerailValley_Data\Managed\Mono.Data.Sqlite.dll</HintPath>
+      </Reference>
+      <Reference Include="Mono.Posix">
+        <HintPath>..\..\DerailValley_Data\Managed\Mono.Posix.dll</HintPath>
+      </Reference>
+      <Reference Include="Mono.Security">
+        <HintPath>..\..\DerailValley_Data\Managed\Mono.Security.dll</HintPath>
+      </Reference>
+      <Reference Include="Mono.WebBrowser">
+        <HintPath>..\..\DerailValley_Data\Managed\Mono.WebBrowser.dll</HintPath>
+      </Reference>
+      <Reference Include="mscorlib">
+        <HintPath>..\..\DerailValley_Data\Managed\mscorlib.dll</HintPath>
+      </Reference>
+      <Reference Include="NatureManufacture.Wind">
+        <HintPath>..\..\DerailValley_Data\Managed\NatureManufacture.Wind.dll</HintPath>
+      </Reference>
+      <Reference Include="net.smkd.vector3d">
+        <HintPath>..\..\DerailValley_Data\Managed\net.smkd.vector3d.dll</HintPath>
+      </Reference>
+      <Reference Include="netstandard">
+        <HintPath>..\..\DerailValley_Data\Managed\netstandard.dll</HintPath>
+      </Reference>
+      <Reference Include="Newtonsoft.Json">
+        <HintPath>..\..\DerailValley_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      </Reference>
+      <Reference Include="Newtonsoft.Json.UnityConverters">
+        <HintPath>..\..\DerailValley_Data\Managed\Newtonsoft.Json.UnityConverters.dll</HintPath>
+      </Reference>
+      <Reference Include="Novell.Directory.Ldap">
+        <HintPath>..\..\DerailValley_Data\Managed\Novell.Directory.Ldap.dll</HintPath>
+      </Reference>
+      <Reference Include="Nvidia.GeForceNOW">
+        <HintPath>..\..\DerailValley_Data\Managed\Nvidia.GeForceNOW.dll</HintPath>
+      </Reference>
+      <Reference Include="Oculus.AudioManager">
+        <HintPath>..\..\DerailValley_Data\Managed\Oculus.AudioManager.dll</HintPath>
+      </Reference>
+      <Reference Include="Oculus.Avatar">
+        <HintPath>..\..\DerailValley_Data\Managed\Oculus.Avatar.dll</HintPath>
+      </Reference>
+      <Reference Include="Oculus.LipSync">
+        <HintPath>..\..\DerailValley_Data\Managed\Oculus.LipSync.dll</HintPath>
+      </Reference>
+      <Reference Include="Oculus.Platform">
+        <HintPath>..\..\DerailValley_Data\Managed\Oculus.Platform.dll</HintPath>
+      </Reference>
+      <Reference Include="Oculus.Spatializer">
+        <HintPath>..\..\DerailValley_Data\Managed\Oculus.Spatializer.dll</HintPath>
+      </Reference>
+      <Reference Include="Oculus.VR">
+        <HintPath>..\..\DerailValley_Data\Managed\Oculus.VR.dll</HintPath>
+      </Reference>
+      <Reference Include="OneBatch">
+        <HintPath>..\..\DerailValley_Data\Managed\OneBatch.dll</HintPath>
+      </Reference>
+      <Reference Include="PIEHid64Net">
+        <HintPath>..\..\DerailValley_Data\Managed\PIEHid64Net.dll</HintPath>
+      </Reference>
+      <Reference Include="PlaylistsNET">
+        <HintPath>..\..\DerailValley_Data\Managed\PlaylistsNET.dll</HintPath>
+      </Reference>
+      <Reference Include="PsychoseInteractive.NGSS">
+        <HintPath>..\..\DerailValley_Data\Managed\PsychoseInteractive.NGSS.dll</HintPath>
+      </Reference>
+      <Reference Include="Rewired">
+        <HintPath>..\..\DerailValley_Data\Managed\Rewired.dll</HintPath>
+      </Reference>
+      <Reference Include="Rewired_Core">
+        <HintPath>..\..\DerailValley_Data\Managed\Rewired_Core.dll</HintPath>
+      </Reference>
+      <Reference Include="Rewired_Windows">
+        <HintPath>..\..\DerailValley_Data\Managed\Rewired_Windows.dll</HintPath>
+      </Reference>
+      <Reference Include="RootMotion">
+        <HintPath>..\..\DerailValley_Data\Managed\RootMotion.dll</HintPath>
+      </Reference>
+      <Reference Include="SaveGameUtils">
+        <HintPath>..\..\DerailValley_Data\Managed\SaveGameUtils.dll</HintPath>
+      </Reference>
+      <Reference Include="sc.posteffects.runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\sc.posteffects.runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="SpriteLights">
+        <HintPath>..\..\DerailValley_Data\Managed\SpriteLights.dll</HintPath>
+      </Reference>
+      <Reference Include="Stateless">
+        <HintPath>..\..\DerailValley_Data\Managed\Stateless.dll</HintPath>
+      </Reference>
+      <Reference Include="System.ComponentModel.Composition">
+        <HintPath>..\..\DerailValley_Data\Managed\System.ComponentModel.Composition.dll</HintPath>
+      </Reference>
+      <Reference Include="System.ComponentModel.DataAnnotations">
+        <HintPath>..\..\DerailValley_Data\Managed\System.ComponentModel.DataAnnotations.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Configuration">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Configuration.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Design">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Design.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Diagnostics.StackTrace">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Diagnostics.StackTrace.dll</HintPath>
+      </Reference>
+      <Reference Include="System.DirectoryServices">
+        <HintPath>..\..\DerailValley_Data\Managed\System.DirectoryServices.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Drawing.Design">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Drawing.Design.dll</HintPath>
+      </Reference>
+      <Reference Include="System.EnterpriseServices">
+        <HintPath>..\..\DerailValley_Data\Managed\System.EnterpriseServices.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Globalization.Extensions">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Globalization.Extensions.dll</HintPath>
+      </Reference>
+      <Reference Include="System.IO.Compression">
+        <HintPath>..\..\DerailValley_Data\Managed\System.IO.Compression.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Net.Http">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Net.Http.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Runtime.CompilerServices.Unsafe">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Runtime.Serialization.Formatters.Soap">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Runtime.Serialization.Formatters.Soap.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Runtime.Serialization.Xml">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Runtime.Serialization.Xml.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Security">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Security.dll</HintPath>
+      </Reference>
+      <Reference Include="System.ServiceModel.Internals">
+        <HintPath>..\..\DerailValley_Data\Managed\System.ServiceModel.Internals.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Transactions">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Transactions.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Web">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Web.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Web.ApplicationServices">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Web.ApplicationServices.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Web.Services">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Web.Services.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Windows.Forms">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Windows.Forms.dll</HintPath>
+      </Reference>
+      <Reference Include="System.Xml.XPath.XDocument">
+        <HintPath>..\..\DerailValley_Data\Managed\System.Xml.XPath.XDocument.dll</HintPath>
+      </Reference>
+      <Reference Include="Tayx.Graphy">
+        <HintPath>..\..\DerailValley_Data\Managed\Tayx.Graphy.dll</HintPath>
+      </Reference>
+      <Reference Include="TerrainComposer2">
+        <HintPath>..\..\DerailValley_Data\Managed\TerrainComposer2.dll</HintPath>
+      </Reference>
+      <Reference Include="today.comes.saintsfield.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\today.comes.saintsfield.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="UniRx">
+        <HintPath>..\..\DerailValley_Data\Managed\UniRx.dll</HintPath>
+      </Reference>
+      <Reference Include="UniTask">
+        <HintPath>..\..\DerailValley_Data\Managed\UniTask.dll</HintPath>
+      </Reference>
+      <Reference Include="UniTask.Addressables">
+        <HintPath>..\..\DerailValley_Data\Managed\UniTask.Addressables.dll</HintPath>
+      </Reference>
+      <Reference Include="UniTask.DOTween">
+        <HintPath>..\..\DerailValley_Data\Managed\UniTask.DOTween.dll</HintPath>
+      </Reference>
+      <Reference Include="UniTask.Linq">
+        <HintPath>..\..\DerailValley_Data\Managed\UniTask.Linq.dll</HintPath>
+      </Reference>
+      <Reference Include="UniTask.TextMeshPro">
+        <HintPath>..\..\DerailValley_Data\Managed\UniTask.TextMeshPro.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Burst">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Burst.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Burst.Cecil">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Burst.Cecil.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Burst.Cecil.Mdb">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Burst.Cecil.Mdb.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Burst.Cecil.Pdb">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Burst.Cecil.Pdb.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Burst.Cecil.Rocks">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Burst.Cecil.Rocks.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Burst.Unsafe">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Burst.Unsafe.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Collections">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Collections.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Deformations">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Deformations.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Entities">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Entities.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Entities.Hybrid">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Entities.Hybrid.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Jobs">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Jobs.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Mathematics">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Mathematics.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Mathematics.Extensions">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Mathematics.Extensions.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Mathematics.Extensions.Hybrid">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Mathematics.Extensions.Hybrid.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.MemoryProfiler">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.MemoryProfiler.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Platforms.Common">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Platforms.Common.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Postprocessing.Runtime">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Postprocessing.Runtime.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.ProBuilder">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.ProBuilder.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.ProBuilder.Csg">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.ProBuilder.Csg.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.ProBuilder.KdTree">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.ProBuilder.KdTree.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.ProBuilder.Poly2Tri">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.ProBuilder.Poly2Tri.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.ProBuilder.Stl">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.ProBuilder.Stl.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Properties">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Properties.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Properties.Reflection">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Properties.Reflection.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Properties.UI">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Properties.UI.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Scenes.Hybrid">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Scenes.Hybrid.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.ScriptableBuildPipeline">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.ScriptableBuildPipeline.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Serialization">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Serialization.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.SharpZipLib">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.SharpZipLib.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.SharpZipLib.Utils">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.SharpZipLib.Utils.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.TextMeshPro">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Timeline">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Timeline.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Transforms">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Transforms.dll</HintPath>
+      </Reference>
+      <Reference Include="Unity.Transforms.Hybrid">
+        <HintPath>..\..\DerailValley_Data\Managed\Unity.Transforms.Hybrid.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.AccessibilityModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.AccessibilityModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.AIModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.AIModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.AndroidJNIModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.AndroidJNIModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.AnimationModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.ARModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.ARModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.AssetBundleModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.AudioModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.ClothModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.ClothModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.ClusterInputModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.ClusterInputModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.ClusterRendererModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.ClusterRendererModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.CoreModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.CrashReportingModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.CrashReportingModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.DirectorModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.DirectorModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.DSPGraphModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.DSPGraphModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.GameCenterModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.GameCenterModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.GridModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.GridModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.HotReloadModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.HotReloadModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.ImageConversionModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.IMGUIModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.InputLegacyModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.InputModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.InputModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.JSONSerializeModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.JSONSerializeModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.LocalizationModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.LocalizationModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.ParticleSystemModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.PerformanceReportingModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.PerformanceReportingModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.Physics2DModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.Physics2DModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.PhysicsModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.ProfilerModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.ProfilerModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.ScreenCaptureModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.ScreenCaptureModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.SharedInternalsModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.SharedInternalsModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.SpatialTracking">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.SpatialTracking.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.SpriteMaskModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.SpriteMaskModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.SpriteShapeModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.SpriteShapeModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.StreamingModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.StreamingModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.SubstanceModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.SubstanceModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.SubsystemsModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.SubsystemsModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.TerrainModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.TerrainModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.TerrainPhysicsModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.TerrainPhysicsModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.TextCoreModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.TextCoreModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.TextRenderingModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.TilemapModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.TilemapModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.TLSModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.TLSModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UI">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UI.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UIElementsModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UIElementsModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UIModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UmbraModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UmbraModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UNETModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UNETModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UnityAnalyticsModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UnityAnalyticsModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UnityConnectModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UnityConnectModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UnityTestProtocolModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UnityTestProtocolModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UnityWebRequestAssetBundleModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UnityWebRequestAssetBundleModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UnityWebRequestModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UnityWebRequestTextureModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UnityWebRequestTextureModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.UnityWebRequestWWWModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.VehiclesModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.VehiclesModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.VFXModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.VFXModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.VideoModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.VideoModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.VRModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.VRModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.WindModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.WindModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.XR.LegacyInputHelpers">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.XR.LegacyInputHelpers.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityEngine.XRModule">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityEngine.XRModule.dll</HintPath>
+      </Reference>
+      <Reference Include="UnityModManager">
+        <HintPath>..\..\DerailValley_Data\Managed\UnityModManager\UnityModManager.dll</HintPath>
+      </Reference>
+      <Reference Include="Valve.SteamVR">
+        <HintPath>..\..\DerailValley_Data\Managed\Valve.SteamVR.dll</HintPath>
+      </Reference>
+      <Reference Include="VerletRope">
+        <HintPath>..\..\DerailValley_Data\Managed\VerletRope.dll</HintPath>
+      </Reference>
+      <Reference Include="VRTK">
+        <HintPath>..\..\DerailValley_Data\Managed\VRTK.dll</HintPath>
+      </Reference>
+      <Reference Include="WorldStreamer">
+        <HintPath>..\..\DerailValley_Data\Managed\WorldStreamer.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+
+</Project>
