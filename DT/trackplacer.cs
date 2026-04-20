@@ -36,9 +36,8 @@ namespace DoubleTrack;
     
     public class AllTracksPatch
     {
-        public static bool locked;
         private static Transform railwayParent;
-        public static List<RailTrack> AddedTracks = new List<RailTrack>();
+        public static List<RailTrack> AddedTracks;
         public static int junctionIDCounter;
         private static List<string> LoadTargets()
         {
@@ -57,10 +56,14 @@ namespace DoubleTrack;
 
         public static void LoadTracks(Scene arg0, LoadSceneMode loadSceneMode)
         {
+            if(arg0.path != WorldStreamingInit.Instance.railwayScenePath)return;
+            
+            AddedTracks = new List<RailTrack>();
+            junctionIDCounter = 0;
+            
             GameObject railwayGo = GameObject.Find("[railway]");
-            if (railwayGo == null || locked) return;
+            if (railwayGo == null) return;
             railwayParent = railwayGo.transform;
-            locked = true;
 
             List<string> targets = LoadTargets();
             List<RailTrack> allTracks = new List<RailTrack>(Object.FindObjectsOfType<RailTrack>());
@@ -186,7 +189,6 @@ namespace DoubleTrack;
 
         public static Junction SetUpPrefabJunction(RailTrack anchor, RailTrack mainMid, RailTrack siding, float xzOffset, string id, bool isDiverge)
         {
-            Debug.Log(anchor);
             string side = (xzOffset > 0) ^ !isDiverge ? "left" : "right";
 
             GameObject template = GameObject.FindObjectsOfType<GameObject>()
