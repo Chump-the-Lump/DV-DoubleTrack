@@ -22,18 +22,65 @@ public static class PersistentTerrainManager
     {
         var harmony = new Harmony("com.persistent.terrain");
 
-        // 1. Primary Hook (Background Thread) - Start early
+        // 1. Primary Hook (Background Thread)
         var loadTarget = AccessTools.Method(AccessTools.Inner(typeof(TerrainGrid), "GridCell"), "OnLoadingFinished");
         harmony.Patch(loadTarget, new HarmonyMethod(typeof(PersistentTerrainManager), nameof(OnLoadingFinished_Prefix)));
 
-        // 2. Gatekeeper Hook (Main Thread) - Ensure visual perfection
+        // 2. Gatekeeper Hook (Main Thread)
         var displayTarget = AccessTools.Method(AccessTools.Inner(typeof(TerrainGrid), "GridCell"), "DisplayTerrain");
         harmony.Patch(displayTarget, new HarmonyMethod(typeof(PersistentTerrainManager), nameof(DisplayTerrain_Prefix)));
+
+        // 3. NEW: The "Forget" Hook - Critical for rapid reloading
+        var unloadTarget = AccessTools.Method(AccessTools.Inner(typeof(TerrainGrid), "GridCell"), "Unload");
+        var unloadPrefix = new HarmonyMethod(typeof(PersistentTerrainManager), nameof(Unload_Prefix));
+        harmony.Patch(unloadTarget, unloadPrefix);
 
         UnityEngine.SceneManagement.SceneManager.sceneUnloaded += (s) => {
             ProcessedTiles.Clear();
             BusyTiles.Clear();
         };
+        
+        TerrainGrid.TerrainDataLoaded += (data, coord) => {
+            if (!ProcessedTiles.Contains(coord) && !BusyTiles.Contains(coord))
+            {
+                // Use reflection to find the GridCell and force a Sync process
+                var gridArray = AccessTools.Field(typeof(TerrainGrid), "grid").GetValue(TerrainGrid.Instance) as Array;
+                if (gridArray != null)
+                {
+                    foreach (var cell in gridArray)
+                    {
+                        Vector2Int cellCoord = (Vector2Int)AccessTools.Field(cell.GetType(), "coord").GetValue(cell);
+                        if (cellCoord == coord)
+                        {
+                            var info = (TerrainInfo)AccessTools.Field(cell.GetType(), "terrainInfo").GetValue(cell);
+                            ProcessTileSync(cell, info, coord); // Forces immediate flat height
+                            break;
+                        }
+                    }
+                }
+            }
+        };
+    }
+    
+    // When a cell is unloaded, remove its coord from our sets 
+// so it is forced to re-patch if it reloads immediately.
+    private static void Unload_Prefix(object __instance)
+    {
+        try
+        {
+            var coordField = AccessTools.Field(__instance.GetType(), "coord");
+            if (coordField != null)
+            {
+                Vector2Int coord = (Vector2Int)coordField.GetValue(__instance);
+                ProcessedTiles.Remove(coord);
+                BusyTiles.Remove(coord);
+            }
+        }
+        catch (Exception e)
+        {
+            UnityEngine.Debug.LogError("[DoubleTrack] Failed to clear tile state during Unload");
+            UnityEngine.Debug.LogException(e);
+        }
     }
     
     // This Prefix intercepts the TerrainInfo BEFORE the GridCell sets its internal status to 'Loaded'
@@ -55,24 +102,24 @@ public static class PersistentTerrainManager
     {
         Vector2Int coord = (Vector2Int)AccessTools.Field(__instance.GetType(), "coord").GetValue(__instance);
     
-        // If we already finished this tile, let the game display it
+        // 1. If it's already done, proceed immediately
         if (ProcessedTiles.Contains(coord)) return true;
 
-        // If it's currently being calculated in the background, we have to block 
-        // the main thread for a moment to prevent the "Mountain Flash"
+        // 2. If it's currently being calculated in the background, we MUST block 
+        // and wait to prevent the mountain from appearing.
         if (BusyTiles.Contains(coord))
         {
-            // This is rare due to our optimization, but it prevents the visual bug
-            return false; 
+            // We force a small wait or simply take over synchronously
+            // Forcing a sync patch here is the only way to guarantee no 'mountain pop'
         }
 
-        // Capture the info struct and run the patch
+        // 3. Capture the info and FORCE a synchronous patch
         var infoField = AccessTools.Field(__instance.GetType(), "terrainInfo");
         TerrainInfo info = (TerrainInfo)infoField.GetValue(__instance);
 
         if (info.terrainData != null)
         {
-            // We call this synchronously here to ENSURE the first frame is flat
+            // By calling this here, we 'steal' the work from the async thread if it hasn't finished
             ProcessTileSync(__instance, info, coord);
         }
 
@@ -260,8 +307,6 @@ public static class PersistentTerrainManager
             // RESUME ORIGINAL LOGIC
             try 
             {
-                // 1. Verify the GridCell still exists and has its wrapper
-                // If the wrapper is null, the game has already called Unload() on this cell
                 var wrapperField = AccessTools.Field(gridCell.GetType(), "wrapper");
                 var currentWrapper = wrapperField?.GetValue(gridCell);
 
@@ -271,13 +316,8 @@ public static class PersistentTerrainManager
                     var resumeMethod = AccessTools.Method(gridCell.GetType(), "OnLoadingFinished");
                     if (resumeMethod != null)
                     {
-                        // Resume the original game logic
                         resumeMethod.Invoke(gridCell, new object[] { info });
                     }
-                }
-                else
-                {
-                    UnityEngine.Debug.LogWarning($"[DoubleTrack] Aborting resumption for {coord}: GridCell was already unloaded.");
                 }
             }
             catch (Exception ex)
@@ -287,12 +327,20 @@ public static class PersistentTerrainManager
             }
             finally
             {
+                // --- THIS IS THE INNER FINALLY ---
                 _isResuming = false;
-                BusyTiles.Remove(coord);
-                if (success) ProcessedTiles.Add(coord);
+                BusyTiles.Remove(coord); // Always remove so it's not 'stuck'
+
+                // ONLY add to Processed if the math actually finished successfully.
+                // If success is false (aborted or failed), the DisplayTerrain_Prefix 
+                // will see it's missing and force a Sync patch instead.
+                if (success) 
+                {
+                    ProcessedTiles.Add(coord);
+                }
             }
 
-            // 2. Final visual refresh - only if everything is still valid
+            // Final visual refresh
             if (success && TerrainGrid.Instance != null)
             {
                 Terrain activeTile = TerrainGrid.Instance.GetLoadedTerrainAt(coord);

@@ -39,6 +39,7 @@ namespace DoubleTrack;
         private static Transform railwayParent;
         public static List<RailTrack> AddedTracks;
         public static int junctionIDCounter;
+        private static GameObject railwayGo;
         private static List<string> LoadTargets()
         {
             string path = Path.Combine(TrackPlacerEntry.ModEntry.Path, "target.txt");
@@ -56,12 +57,15 @@ namespace DoubleTrack;
 
         public static void LoadTracks(Scene arg0, LoadSceneMode loadSceneMode)
         {
-            if(arg0.path != WorldStreamingInit.Instance.railwayScenePath)return;
+            if(railwayGo != null) return;
+            if (WorldStreamingInit.Instance == null || WorldStreamingInit.Instance.railwayScenePath == null) return;
+            if (arg0.path != WorldStreamingInit.Instance.railwayScenePath) return;
+            if (RailTrackRegistry.Instance == null) return;
             
             AddedTracks = new List<RailTrack>();
             junctionIDCounter = 0;
             
-            GameObject railwayGo = GameObject.Find("[railway]");
+            railwayGo = GameObject.Find("[railway]");
             if (railwayGo == null) return;
             railwayParent = railwayGo.transform;
 
