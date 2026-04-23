@@ -32,13 +32,13 @@ public static class PersistentTerrainManager
 
         // 3. NEW: The "Forget" Hook - Critical for rapid reloading
         var unloadTarget = AccessTools.Method(AccessTools.Inner(typeof(TerrainGrid), "GridCell"), "Unload");
-        var unloadPrefix = new HarmonyMethod(typeof(PersistentTerrainManager), nameof(Unload_Prefix));
-        harmony.Patch(unloadTarget, unloadPrefix);
+        harmony.Patch(unloadTarget, new HarmonyMethod(typeof(PersistentTerrainManager), nameof(Unload_Prefix)));
 
         UnityEngine.SceneManagement.SceneManager.sceneUnloaded += (s) => {
             ProcessedTiles.Clear();
             BusyTiles.Clear();
         };
+        
         
         TerrainGrid.TerrainDataLoaded += (data, coord) => {
             if (!ProcessedTiles.Contains(coord) && !BusyTiles.Contains(coord))
@@ -192,11 +192,35 @@ public static class PersistentTerrainManager
         }
 
         // --- STEP 3: APPLY ---
-        if (data != null && data)
+        if (data != null)
         {
             if (modified)
             {
                 data.SetHeights(0, 0, heights);
+        
+                // Find the actual active terrain component
+                Terrain activeTerrain = TerrainGrid.Instance.GetLoadedTerrainAt(coord);
+                if (activeTerrain != null)
+                {
+                    // 1. FIX STITCHING: Recalculate seams with surrounding tiles
+                    // This is the most reliable way to fix gaps between tiles in Unity
+                    activeTerrain.ApplyDelayedHeightmapModification();
+
+                    // 2. RE-STITCH NEIGHBORS: 
+                    // Instead of UpdateSettings, we manually tell the terrain to reconnect
+                    activeTerrain.SetNeighbors(
+                        TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.up),
+                        TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.down),
+                        TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.left),
+                        TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.right)
+                    );
+            
+                    // 3. REFRESH COLLIDER:
+                    // Ensure the physics match the new flat heights
+                    var collider = activeTerrain.GetComponent<TerrainCollider>();
+                    if (collider != null) collider.terrainData = data;
+                }
+        
                 data.SyncHeightmap();
             }
             // Mark as processed so the DisplayTerrain_Prefix doesn't run this again.
@@ -286,11 +310,35 @@ public static class PersistentTerrainManager
             }
 
             // --- STEP 3: APPLY (Main Thread) ---
-            if (data != null && data)
+            if (data != null)
             {
                 if (modified)
                 {
                     data.SetHeights(0, 0, heights);
+        
+                    // Find the actual active terrain component
+                    Terrain activeTerrain = TerrainGrid.Instance.GetLoadedTerrainAt(coord);
+                    if (activeTerrain != null)
+                    {
+                        // 1. FIX STITCHING: Recalculate seams with surrounding tiles
+                        // This is the most reliable way to fix gaps between tiles in Unity
+                        activeTerrain.ApplyDelayedHeightmapModification();
+
+                        // 2. RE-STITCH NEIGHBORS: 
+                        // Instead of UpdateSettings, we manually tell the terrain to reconnect
+                        activeTerrain.SetNeighbors(
+                            TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.up),
+                            TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.down),
+                            TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.left),
+                            TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.right)
+                        );
+            
+                        // 3. REFRESH COLLIDER:
+                        // Ensure the physics match the new flat heights
+                        var collider = activeTerrain.GetComponent<TerrainCollider>();
+                        if (collider != null) collider.terrainData = data;
+                    }
+        
                     data.SyncHeightmap();
                 }
                 success = true;

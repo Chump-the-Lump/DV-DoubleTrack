@@ -174,18 +174,7 @@ namespace DoubleTrack;
                     Object.Destroy(template);
                 }
             }
-               
-            /*
-            FieldInfo field = typeof(RailTrackRegistryBase).GetField("_allTracks", BindingFlags.NonPublic | BindingFlags.Instance);
-    
-            if (field != null)
-            {
-                field.SetValue(RailTrackRegistryBase.Instance, null);
-            }
-
-            RailTrack[]? _ = RailTrackRegistryBase.Instance.AllTracks;
-            _ = null;
-            */
+            
             
             new GameObject("signPlacer", typeof(SignPlacer));
         }
@@ -233,13 +222,21 @@ namespace DoubleTrack;
             junction.inBranch = new Junction.Branch(anchor, !isDiverge);
 
             // Replace the shared list with unique Branch objects
-            junction.outBranches = new List<Junction.Branch>()
-            {
-                new Junction.Branch(prefabThrough, true),
-                new Junction.Branch(prefabDiverge, true)
-            };
+
+            if (isDiverge) junction.outBranches = new List<Junction.Branch>()
+                {
+                    new Junction.Branch(prefabThrough, true),
+                    new Junction.Branch(prefabDiverge, true)
+                };
+            else junction.outBranches = new List<Junction.Branch>()
+                {
+                    new Junction.Branch(prefabDiverge, true),
+
+                    new Junction.Branch(prefabThrough, true)
+                };
             
             Junction.JunctionData junctionData = new Junction.JunctionData();
+            junctionData.junctionIndex = junctionIDCounter + 1000;
             junctionData.junctionId = junctionIDCounter;
             junctionData.position = junction.transform.position;
             junctionData.junctionIdLong = "EXC-" + junctionIDCounter.ToString("D4")+"-MAIN";
@@ -257,17 +254,11 @@ namespace DoubleTrack;
             Vector3 localInPoint = prefabThrough.curve[0].localPosition;
             juncGroup.transform.position = anchorPos - (juncGroup.transform.rotation * localInPoint);
 
-            // Vertex Snapping
-            if (isDiverge)
-            {
-                SnapTrackToPoint(mainMid, true, prefabThrough.curve.Last());
-                SnapTrackToPoint(siding, true, prefabDiverge.curve.Last());
-            }
-            else
-            {
-                SnapTrackToPoint(mainMid, false, prefabThrough.curve.Last());
-                SnapTrackToPoint(siding, false, prefabDiverge.curve.Last());
-            }
+
+
+            SnapTrackToPoint(mainMid, isDiverge, prefabThrough.curve.Last());
+            SnapTrackToPoint(siding, isDiverge, prefabDiverge.curve.Last());
+
 
             if (isDiverge)
             {
@@ -294,6 +285,8 @@ namespace DoubleTrack;
                 prefabDiverge.inBranch = junction.inBranch;
                 prefabDiverge.outBranch = new Junction.Branch(siding, false);
                 siding.outBranch = new Junction.Branch(prefabDiverge, false);
+
+                visualSwitch.invertDirection = false;
             }
 
             junction.defaultSelectedBranch = 0;
