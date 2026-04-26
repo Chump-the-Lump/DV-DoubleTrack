@@ -201,19 +201,26 @@ public static class PersistentTerrainManager
                 // Find the actual active terrain component
                 Terrain activeTerrain = TerrainGrid.Instance.GetLoadedTerrainAt(coord);
                 if (activeTerrain != null)
-                {
-                    // 1. FIX STITCHING: Recalculate seams with surrounding tiles
-                    // This is the most reliable way to fix gaps between tiles in Unity
-                    activeTerrain.ApplyDelayedHeightmapModification();
+                    if (activeTerrain != null)
+                    {
+                        activeTerrain.ApplyDelayedHeightmapModification();
 
-                    // 2. RE-STITCH NEIGHBORS: 
-                    // Instead of UpdateSettings, we manually tell the terrain to reconnect
-                    activeTerrain.SetNeighbors(
-                        TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.up),
-                        TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.down),
-                        TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.left),
-                        TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.right)
-                    );
+                        // Look up neighbors in the grid
+                        Terrain top = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.up);
+                        Terrain bottom = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.down);
+                        Terrain left = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.left);
+                        Terrain right = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.right);
+
+                        // Weld current tile to whatever neighbors are currently alive
+                        activeTerrain.SetNeighbors(left, top, right, bottom);
+
+                        // REVERSE STITCH: If a neighbor is alive, force it to weld to THIS tile immediately
+                        // This prevents one-sided cracks when a neighbor was already loaded
+                        top?.SetNeighbors(top.leftNeighbor, top.topNeighbor, top.rightNeighbor, activeTerrain);
+                        bottom?.SetNeighbors(bottom.leftNeighbor, activeTerrain, bottom.rightNeighbor, bottom.bottomNeighbor);
+                        left?.SetNeighbors(left.leftNeighbor, left.topNeighbor, activeTerrain, left.bottomNeighbor);
+                        right?.SetNeighbors(activeTerrain, right.topNeighbor, right.rightNeighbor, right.bottomNeighbor);
+                    
             
                     // 3. REFRESH COLLIDER:
                     // Ensure the physics match the new flat heights
@@ -320,18 +327,24 @@ public static class PersistentTerrainManager
                     Terrain activeTerrain = TerrainGrid.Instance.GetLoadedTerrainAt(coord);
                     if (activeTerrain != null)
                     {
-                        // 1. FIX STITCHING: Recalculate seams with surrounding tiles
-                        // This is the most reliable way to fix gaps between tiles in Unity
                         activeTerrain.ApplyDelayedHeightmapModification();
 
-                        // 2. RE-STITCH NEIGHBORS: 
-                        // Instead of UpdateSettings, we manually tell the terrain to reconnect
-                        activeTerrain.SetNeighbors(
-                            TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.up),
-                            TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.down),
-                            TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.left),
-                            TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.right)
-                        );
+                        // Look up neighbors in the grid
+                        Terrain top = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.up);
+                        Terrain bottom = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.down);
+                        Terrain left = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.left);
+                        Terrain right = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.right);
+
+                        // Weld current tile to whatever neighbors are currently alive
+                        activeTerrain.SetNeighbors(left, top, right, bottom);
+
+                        // REVERSE STITCH: If a neighbor is alive, force it to weld to THIS tile immediately
+                        // This prevents one-sided cracks when a neighbor was already loaded
+                        top?.SetNeighbors(top.leftNeighbor, top.topNeighbor, top.rightNeighbor, activeTerrain);
+                        bottom?.SetNeighbors(bottom.leftNeighbor, activeTerrain, bottom.rightNeighbor, bottom.bottomNeighbor);
+                        left?.SetNeighbors(left.leftNeighbor, left.topNeighbor, activeTerrain, left.bottomNeighbor);
+                        right?.SetNeighbors(activeTerrain, right.topNeighbor, right.rightNeighbor, right.bottomNeighbor);
+                    
             
                         // 3. REFRESH COLLIDER:
                         // Ensure the physics match the new flat heights

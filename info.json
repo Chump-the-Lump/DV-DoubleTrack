@@ -3,7 +3,7 @@
   "DisplayName": "Double Track",
   "Author": "Chump_the_Lump",
   "Repository":"https://raw.githubusercontent.com/Chump-the-Lump/DV-DoubleTrack/refs/heads/main/repository.json",
-  "Version": "1.0.3",
+  "Version": "1.0.4",
   "AssemblyName": "DoubleTrack.dll",
   "EntryMethod": "DoubleTrack.TrackPlacerEntry.Load"
   }

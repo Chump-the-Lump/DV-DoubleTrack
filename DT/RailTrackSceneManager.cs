@@ -61,7 +61,7 @@ namespace DoubleTrack
                     {
                         if (!_localColliderSegments.Contains(segment))
                         {
-                            WorldMover.Instance.objectsToMove.Add(segment);
+                            WorldMover.Instance.AddObjectToMove(segment);
                             segment.transform.position += WorldMover.currentMove;
                             segment.gameObject.SetActive(true);
                         }
@@ -86,7 +86,18 @@ namespace DoubleTrack
 
         void OnDestroy()
         {
-            foreach (var segment in _localColliderSegments) if (segment != null) segment.gameObject.SetActive(false);
+            if (_localColliderSegments == null) return;
+
+            foreach (var segment in _localColliderSegments)
+            {
+                if (segment != null)
+                {
+                    segment.gameObject.SetActive(false);
+                    // Crucial: stop the WorldMover from tracking this while the sector is gone
+                    if (WorldMover.Instance != null)
+                        WorldMover.Instance.objectsToMove.Remove(segment);
+                }
+            }
         }
     }
     

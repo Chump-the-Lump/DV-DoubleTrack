@@ -1,5 +1,7 @@
 ﻿
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using Cysharp.Threading.Tasks.Triggers;
 using DV.CabControls;
 using DV.CabControls.NonVR;
@@ -54,6 +56,8 @@ namespace DoubleTrack;
                 .Select(s => s.Trim())
                 .ToList();
         }
+        
+        
 
         public static void LoadTracks(Scene arg0, LoadSceneMode loadSceneMode)
         {
@@ -71,6 +75,7 @@ namespace DoubleTrack;
 
             List<string> targets = LoadTargets();
             List<RailTrack> allTracks = new List<RailTrack>(Object.FindObjectsOfType<RailTrack>());
+
 
             foreach (string entry in targets)
             {
@@ -223,17 +228,23 @@ namespace DoubleTrack;
 
             // Replace the shared list with unique Branch objects
 
-            if (isDiverge) junction.outBranches = new List<Junction.Branch>()
+            if (side != "left"){
+                junction.outBranches = new List<Junction.Branch>()
                 {
                     new Junction.Branch(prefabThrough, true),
                     new Junction.Branch(prefabDiverge, true)
                 };
-            else junction.outBranches = new List<Junction.Branch>()
+                visualSwitch.invertDirection = true;
+            }
+            else{
+                junction.outBranches = new List<Junction.Branch>()
                 {
                     new Junction.Branch(prefabDiverge, true),
 
                     new Junction.Branch(prefabThrough, true)
                 };
+                visualSwitch.invertDirection = false;
+            }
             
             Junction.JunctionData junctionData = new Junction.JunctionData();
             junctionData.junctionIndex = junctionIDCounter + 1000;
@@ -285,8 +296,6 @@ namespace DoubleTrack;
                 prefabDiverge.inBranch = junction.inBranch;
                 prefabDiverge.outBranch = new Junction.Branch(siding, false);
                 siding.outBranch = new Junction.Branch(prefabDiverge, false);
-
-                visualSwitch.invertDirection = false;
             }
 
             junction.defaultSelectedBranch = 0;
