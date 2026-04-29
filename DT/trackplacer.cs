@@ -76,6 +76,7 @@ namespace DoubleTrack;
             List<string> targets = LoadTargets();
             List<RailTrack> allTracks = new List<RailTrack>(Object.FindObjectsOfType<RailTrack>());
 
+            WorldStateFixer.Patch = false;
 
             foreach (string entry in targets)
             {
@@ -155,9 +156,13 @@ namespace DoubleTrack;
                     RailTrack[] tempB = SplitTrackForJunction(tempA[1], endIdx - startIdx);
                     RailTrack[] newMains = new[] { tempA[0], tempB[0], tempB[1] };
                     
+                    Object.Destroy(tempA[1]);
+                    
                     // 4. Set up Junctions
                     SetUpPrefabJunction(newMains[0], newMains[1], newTrack, xzOffset, "Split", true);
                     SetUpPrefabJunction(newMains[2], newMains[1], newTrack, xzOffset, "Merge", false);
+
+                    SetupComponent(newMains[1], newTrack, xzOffset);
                     
                     AddedTracks.Add(newTrack);
                     AddedTracks.Add(newMains[1]);
@@ -416,6 +421,24 @@ namespace DoubleTrack;
             newTracks[1].generateColliders = true;
 
             return newTracks;
+        }
+
+        private static void SetupComponent(RailTrack main, RailTrack side, float offset)
+        {
+            DoubleRailTrack mainTrack = main.AddComponent<DoubleRailTrack>();
+            DoubleRailTrack sideTrack = side.AddComponent<DoubleRailTrack>();
+            
+            mainTrack.IsSiding = false;
+            sideTrack.IsSiding = true;
+            
+            mainTrack.Offset = offset;
+            sideTrack.Offset = offset;
+
+            mainTrack.ThisRailTrack = main;
+            sideTrack.ThisRailTrack = side;
+            
+            mainTrack.OtherRailTrack = side;
+            sideTrack.OtherRailTrack = main;
         }
 
         private static void LogAllComponents(GameObject root, string junctionId)

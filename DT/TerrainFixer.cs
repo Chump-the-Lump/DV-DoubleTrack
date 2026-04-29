@@ -201,29 +201,10 @@ public static class PersistentTerrainManager
                 // Find the actual active terrain component
                 Terrain activeTerrain = TerrainGrid.Instance.GetLoadedTerrainAt(coord);
                 if (activeTerrain != null)
-                    if (activeTerrain != null)
-                    {
-                        activeTerrain.ApplyDelayedHeightmapModification();
-
-                        // Look up neighbors in the grid
-                        Terrain top = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.up);
-                        Terrain bottom = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.down);
-                        Terrain left = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.left);
-                        Terrain right = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.right);
-
-                        // Weld current tile to whatever neighbors are currently alive
-                        activeTerrain.SetNeighbors(left, top, right, bottom);
-
-                        // REVERSE STITCH: If a neighbor is alive, force it to weld to THIS tile immediately
-                        // This prevents one-sided cracks when a neighbor was already loaded
-                        top?.SetNeighbors(top.leftNeighbor, top.topNeighbor, top.rightNeighbor, activeTerrain);
-                        bottom?.SetNeighbors(bottom.leftNeighbor, activeTerrain, bottom.rightNeighbor, bottom.bottomNeighbor);
-                        left?.SetNeighbors(left.leftNeighbor, left.topNeighbor, activeTerrain, left.bottomNeighbor);
-                        right?.SetNeighbors(activeTerrain, right.topNeighbor, right.rightNeighbor, right.bottomNeighbor);
-                    
-            
-                    // 3. REFRESH COLLIDER:
-                    // Ensure the physics match the new flat heights
+                {
+                    activeTerrain.ApplyDelayedHeightmapModification(); 
+                    FinalizeTile(coord, activeTerrain);
+                        
                     var collider = activeTerrain.GetComponent<TerrainCollider>();
                     if (collider != null) collider.terrainData = data;
                 }
@@ -328,26 +309,8 @@ public static class PersistentTerrainManager
                     if (activeTerrain != null)
                     {
                         activeTerrain.ApplyDelayedHeightmapModification();
-
-                        // Look up neighbors in the grid
-                        Terrain top = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.up);
-                        Terrain bottom = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.down);
-                        Terrain left = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.left);
-                        Terrain right = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.right);
-
-                        // Weld current tile to whatever neighbors are currently alive
-                        activeTerrain.SetNeighbors(left, top, right, bottom);
-
-                        // REVERSE STITCH: If a neighbor is alive, force it to weld to THIS tile immediately
-                        // This prevents one-sided cracks when a neighbor was already loaded
-                        top?.SetNeighbors(top.leftNeighbor, top.topNeighbor, top.rightNeighbor, activeTerrain);
-                        bottom?.SetNeighbors(bottom.leftNeighbor, activeTerrain, bottom.rightNeighbor, bottom.bottomNeighbor);
-                        left?.SetNeighbors(left.leftNeighbor, left.topNeighbor, activeTerrain, left.bottomNeighbor);
-                        right?.SetNeighbors(activeTerrain, right.topNeighbor, right.rightNeighbor, right.bottomNeighbor);
-                    
-            
-                        // 3. REFRESH COLLIDER:
-                        // Ensure the physics match the new flat heights
+                        FinalizeTile(coord, activeTerrain);
+                        
                         var collider = activeTerrain.GetComponent<TerrainCollider>();
                         if (collider != null) collider.terrainData = data;
                     }
@@ -415,7 +378,7 @@ public static class PersistentTerrainManager
     {
         bool modified = false;
         float searchRadius = BRUSH_SIZE / 2f;
-        float borderBuffer = searchRadius + 2f;
+        float borderBuffer = BRUSH_SIZE;
         float[,] localWeights = new float[res, res];
 
         foreach (var points in tracks)
@@ -448,10 +411,12 @@ public static class PersistentTerrainManager
                 {
                     for (int x = xStart; x <= xEnd; x++)
                     {
+                        // Better Pixel Position calculation to minimize seam jitter
+                        float stepSize = tileSize.x / (res - 1);
                         Vector3 pixelPos = new Vector3(
-                            tilePos.x + (x / (float)(res - 1)) * tileSize.x, 
+                            tilePos.x + (x * stepSize), 
                             0, 
-                            tilePos.z + (z / (float)(res - 1)) * tileSize.z
+                            tilePos.z + (z * stepSize)
                         );
 
                         float dist = GetDistanceToSegment(pixelPos, pA, pB);
@@ -519,5 +484,64 @@ public static class PersistentTerrainManager
         Vector2 ab = b2 - a2;
         float t = Mathf.Clamp01(Vector2.Dot(p2 - a2, ab) / Vector2.Dot(ab, ab));
         return Mathf.Lerp(a.y, b.y, t);
+    }
+    
+    private static void WeldSeams(Terrain current, Terrain neighbor, bool horizontal)
+    {
+        if (current == null || neighbor == null) return;
+    
+        int res = current.terrainData.heightmapResolution;
+        float[,] myHeights = current.terrainData.GetHeights(0, 0, res, res);
+        float[,] theirHeights = neighbor.terrainData.GetHeights(0, 0, res, res);
+
+        if (horizontal) // Neighbor is to the Right
+        {
+            for (int i = 0; i < res; i++)
+            {
+                float avg = (myHeights[i, res - 1] + theirHeights[i, 0]) * 0.5f;
+                myHeights[i, res - 1] = avg;
+                theirHeights[i, 0] = avg;
+            }
+        }
+        else // Neighbor is Above
+        {
+            for (int i = 0; i < res; i++)
+            {
+                float avg = (myHeights[res - 1, i] + theirHeights[0, i]) * 0.5f;
+                myHeights[res - 1, i] = avg;
+                theirHeights[0, i] = avg;
+            }
+        }
+
+        current.terrainData.SetHeights(0, 0, myHeights);
+        neighbor.terrainData.SetHeights(0, 0, theirHeights);
+    }
+    
+    private static void FinalizeTile(Vector2Int coord, Terrain activeTerrain)
+    {
+        // Define the 4 directions
+        Vector2Int[] neighbors = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+
+        foreach (var dir in neighbors)
+        {
+            Vector2Int neighborCoord = coord + dir;
+            Terrain neighborTerrain = TerrainGrid.Instance.GetLoadedTerrainAt(neighborCoord);
+
+            if (neighborTerrain != null)
+            {
+                // If the neighbor is already processed, weld to it.
+                // If the neighbor is NOT processed, it will eventually call 
+                // this same method when IT finishes and weld to US.
+                bool horizontal = (dir == Vector2Int.left || dir == Vector2Int.right);
+            
+                // Note: Order matters for the WeldSeams logic (Left/Right, Top/Bottom)
+                if (dir == Vector2Int.right) WeldSeams(activeTerrain, neighborTerrain, true);
+                else if (dir == Vector2Int.left) WeldSeams(neighborTerrain, activeTerrain, true);
+                else if (dir == Vector2Int.up) WeldSeams(activeTerrain, neighborTerrain, false);
+                else if (dir == Vector2Int.down) WeldSeams(neighborTerrain, activeTerrain, false);
+            }
+        }
+    
+        activeTerrain.Flush();
     }
 }

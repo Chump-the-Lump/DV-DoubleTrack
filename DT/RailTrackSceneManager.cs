@@ -13,6 +13,7 @@ namespace DoubleTrack
         private List<Transform> _localColliderSegments;
         private bool _initialized = false;
         public static Dictionary<string, List<Transform>> TileNameToRailTrack = new Dictionary<string, List<Transform>>();
+        public static List<Transform> Colliders = new List<Transform>();
         void Awake()
         {
             _sector = GetComponent<SceneSplitManager>();
@@ -40,7 +41,8 @@ namespace DoubleTrack
         private void RegisterAndSyncSegments()
         {
             _localColliderSegments = new List<Transform>();
-            // These are static map coordinates and do not change with the WorldMover
+    
+            // Static boundaries for this sector
             float minX = _sector.position.x;
             float maxX = _sector.position.x + _sector.size.x;
             float minZ = _sector.position.z;
@@ -54,23 +56,25 @@ namespace DoubleTrack
 
                 foreach (Transform segment in colRoot)
                 {
-                    Vector3 trueWorldPos = segment.position;
+                    Vector3 worldMoveOffset = WorldMover.currentMove;
+                    Vector3 staticMapPos = segment.position - worldMoveOffset;
 
-                    if (trueWorldPos.x >= minX && trueWorldPos.x <= maxX &&
-                        trueWorldPos.z >= minZ && trueWorldPos.z <= maxZ)
+                    // Does this segment belong to this sector?
+                    if (staticMapPos.x >= minX && staticMapPos.x <= maxX &&
+                        staticMapPos.z >= minZ && staticMapPos.z <= maxZ)
                     {
-                        if (!_localColliderSegments.Contains(segment))
+                        // Sync the position ONCE so it's ready
+                        if (!Colliders.Contains(segment))
                         {
-                            WorldMover.Instance.AddObjectToMove(segment);
-                            segment.transform.position += WorldMover.currentMove;
-                            segment.gameObject.SetActive(true);
+                            Colliders.Add(segment);
+                            segment.position = staticMapPos + worldMoveOffset;
                         }
+                        _localColliderSegments.Add(segment);
+                        
+                        segment.gameObject.SetActive(true);
                     }
                 }
             }
-
-            TileNameToRailTrack[_sector.sceneName] = _localColliderSegments;
-
         }
 
         private void RemoveVanillaSignsAndColliders()
@@ -93,11 +97,9 @@ namespace DoubleTrack
                 if (segment != null)
                 {
                     segment.gameObject.SetActive(false);
-                    // Crucial: stop the WorldMover from tracking this while the sector is gone
-                    if (WorldMover.Instance != null)
-                        WorldMover.Instance.objectsToMove.Remove(segment);
                 }
             }
+            _localColliderSegments.Clear();
         }
     }
     

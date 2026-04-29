@@ -12,7 +12,7 @@ The code you are about to witness is an absolute cluster fuck. I would not wish 
 
 ::  KNOWN ISSUES ::
 • The code is a cluster fuck
-• Edditing the targets file is not supported, here be dragons!
+• Editing the targets file is not supported, here be dragons!
 
 ::  CREDITS Template ::
 ♦ Chump_the_Lump
