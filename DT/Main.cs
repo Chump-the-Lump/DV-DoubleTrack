@@ -51,12 +51,16 @@ namespace DoubleTrack
     public static class TrackPlacerEntry
     {
         public static UnityModManager.ModEntry ModEntry;
-
+        public static string TARGET_PATH = "";
+        public static string CACHE_PATH = "";
         public static bool Load(UnityModManager.ModEntry entry)
         {
             ModEntry = entry;
             var harmony = new Harmony(entry.Info.Id);
             harmony.PatchAll();
+            
+            TARGET_PATH = Path.Combine(TrackPlacerEntry.ModEntry.Path, "target.csv");
+            CACHE_PATH = Path.Combine(TrackPlacerEntry.ModEntry.Path, "terrain.dat");
 
             Settings? settings = null;
 

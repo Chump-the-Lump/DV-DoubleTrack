@@ -6,6 +6,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System;
+using System.Collections;
 using HarmonyLib;
 using DoubleTrack;
 
@@ -13,142 +14,215 @@ public static class PersistentTerrainManager
 {
     public const int BRUSH_SIZE = 30;
     public const int SMOOTH_RADIUS = 2;
-    public const float VERTICAL_OFFSET = -1f;
+    public const float VERTICAL_OFFSET = -0.75f;
+    
+    public struct HeightDelta
+    {
+        public ushort x;
+        public ushort z;
+        public float height;
 
-    private static readonly HashSet<Vector2Int> ProcessedTiles = new HashSet<Vector2Int>();
-    private static readonly HashSet<Vector2Int> BusyTiles = new HashSet<Vector2Int>();
+        public HeightDelta(int x, int z, float height)
+        {
+            this.x = (ushort)x;
+            this.z = (ushort)z;
+            this.height = height;
+        }
+    }
+
+    private static Dictionary<Vector2Int, List<HeightDelta>> CompressedHeightCache = new Dictionary<Vector2Int, List<HeightDelta>>();
 
     public static void Initialize()
     {
-        var harmony = new Harmony("com.persistent.terrain");
-
-        // 1. Primary Hook (Background Thread)
-        var loadTarget = AccessTools.Method(AccessTools.Inner(typeof(TerrainGrid), "GridCell"), "OnLoadingFinished");
-        harmony.Patch(loadTarget, new HarmonyMethod(typeof(PersistentTerrainManager), nameof(OnLoadingFinished_Prefix)));
-
-        // 2. Gatekeeper Hook (Main Thread)
-        var displayTarget = AccessTools.Method(AccessTools.Inner(typeof(TerrainGrid), "GridCell"), "DisplayTerrain");
-        harmony.Patch(displayTarget, new HarmonyMethod(typeof(PersistentTerrainManager), nameof(DisplayTerrain_Prefix)));
-
-        // 3. NEW: The "Forget" Hook - Critical for rapid reloading
-        var unloadTarget = AccessTools.Method(AccessTools.Inner(typeof(TerrainGrid), "GridCell"), "Unload");
-        harmony.Patch(unloadTarget, new HarmonyMethod(typeof(PersistentTerrainManager), nameof(Unload_Prefix)));
-
-        UnityEngine.SceneManagement.SceneManager.sceneUnloaded += (s) => {
-            ProcessedTiles.Clear();
-            BusyTiles.Clear();
+        TerrainGrid.Initialized += ()=>TerrainGrid.Instance.StartCoroutine(PreLoadTerrain());
+        
+        // Listen to the static delegate provided by the game's TerrainGrid
+        TerrainGrid.TerrainDataLoaded += (UnityEngine.TerrainData data, Vector2Int coord) =>
+        {
+            FindCell(coord);
         };
+    }
+    
+    private static IEnumerator PreLoadTerrain()
+    {
+        Debug.Log("[DoubleTrack] Preloading Terrain");
+        CompressedHeightCache = TerrainCacheCompressor.LoadCompressedDeltas(TrackPlacerEntry.CACHE_PATH,TrackPlacerEntry.TARGET_PATH);
+        if(CompressedHeightCache.Count > 0) yield break;
+        Debug.LogWarning("[DoubleTrack] Failed to find cache data, recalculating terrain height matrix (This may take a while)");
         
         
-        TerrainGrid.TerrainDataLoaded += (data, coord) => {
-            if (!ProcessedTiles.Contains(coord) && !BusyTiles.Contains(coord))
+        yield return new WaitUntil(()=>AllTracksPatch.trackCounter != 0);
+        
+        var gridField = AccessTools.Field(typeof(TerrainGrid), "grid").GetValue(TerrainGrid.Instance) as TerrainGrid.GridCell[];
+
+        int celsToCache = 0;
+        foreach(TerrainGrid.GridCell cell in gridField)
+        {
+            List<Vector3[]> closeTiles = IsTileNearTrack(cell.coord);
+            if(closeTiles.Count > 0)
             {
-                // Use reflection to find the GridCell and force a Sync process
-                var gridArray = AccessTools.Field(typeof(TerrainGrid), "grid").GetValue(TerrainGrid.Instance) as Array;
-                if (gridArray != null)
+                cell.Load();
+                cell.wrapper.LoadingFinished += PreLoad;
+                celsToCache++;
+                
+                void PreLoad(TerrainInfo info)
                 {
-                    foreach (var cell in gridArray)
+                    cell.wrapper.LoadingFinished -= PreLoad;
+                    ProcessTileSync(cell,closeTiles);
+                    cell.Unload();
+                }
+            }
+        }
+        
+        yield return new WaitUntil(()=>CompressedHeightCache.Count==celsToCache);
+        TerrainCacheCompressor.SaveCompressedDeltas(TrackPlacerEntry.CACHE_PATH,TrackPlacerEntry.TARGET_PATH,CompressedHeightCache);
+        Debug.Log("[DoubleTrack] Cached "+CompressedHeightCache.Count+" tiles");
+        
+    }
+    
+
+    private static void FindCell(Vector2Int coord)
+    {
+        // Find the active cell that just finished loading
+        var gridField = AccessTools.Field(typeof(TerrainGrid), "grid").GetValue(TerrainGrid.Instance) as TerrainGrid.GridCell[];
+        if (gridField == null) return;
+            
+        // Find the matching coordinate row
+        foreach(var cell in gridField)
+        {
+            if(cell.coord == coord)
+            {
+                LoadFromCache(cell);
+                return;
+            }
+        }
+    }
+
+    private static void LoadFromCache(TerrainGrid.GridCell gridCell)
+    {
+        TerrainInfo info = gridCell.terrainInfo;
+        if (info.terrainData == null || TerrainGrid.Instance == null) return;
+
+        Vector2Int coord = gridCell.coord;
+        TerrainData data = info.terrainData;
+        int res = data.heightmapResolution;
+
+        try
+        {
+            // --- FAST PATH: CACHED LAYOUT LOOKUP ---
+            if (CompressedHeightCache.TryGetValue(coord, out List<HeightDelta> cachedDeltas))
+            {
+                if (cachedDeltas.Count > 0)
+                {
+                    float[,] heights = data.GetHeights(0, 0, res, res);
+                    foreach (var delta in cachedDeltas)
                     {
-                        Vector2Int cellCoord = (Vector2Int)AccessTools.Field(cell.GetType(), "coord").GetValue(cell);
-                        if (cellCoord == coord)
+                        heights[delta.z, delta.x] = delta.height;
+                    }
+
+                    data.SetHeights(0, 0, heights);
+
+                    Terrain gridCellTerrain = gridCell.terrain;
+                    if (gridCellTerrain != null)
+                    {
+                        FinalizeTile(coord, gridCellTerrain);
+                        var collider = gridCellTerrain.GetComponent<TerrainCollider>();
+                        if (collider != null) collider.terrainData = data;
+                    }
+
+                    data.SyncHeightmap();
+                }
+                return;
+            }
+        }catch (Exception e)
+        {
+            UnityEngine.Debug.LogError($"[DoubleTrack] CacheLoad failed for {coord}");
+            UnityEngine.Debug.LogException(e);
+        }
+        /*
+        RelevantTracks = IsTileNearTrack(coord);
+        if(RelevantTracks.Count == 0) return;
+        Debug.LogWarning($"[DoubleTrack] Failed to find cached tile at {coord}");
+        ProcessTileSync(gridCell);
+        */
+    }
+
+
+    private static void ProcessTileSync(TerrainGrid.GridCell gridCell,List<Vector3[]> relevantTracks)
+    {
+        TerrainInfo info = gridCell.terrainInfo;
+        if (info.terrainData == null || TerrainGrid.Instance == null) return;
+
+        Vector2Int coord = gridCell.coord;
+        TerrainData data = info.terrainData;
+        int res = data.heightmapResolution;
+        
+        try{
+            // --- SLOW PATH: FIRST-TIME COMPUTATION ---
+            float[,] currentHeights = data.GetHeights(0, 0, res, res);
+            float[,] originalHeights = (float[,])currentHeights.Clone();
+            Vector3 tileSize = data.size;
+            
+            
+            //relevantTracks = IsTileNearTrack(coord);
+            
+            bool modified = false;
+            if (relevantTracks.Count > 0)
+            {
+                modified = CalculateFlattening(currentHeights, originalHeights, relevantTracks, tileSize, res);
+            }
+
+            List<HeightDelta> deltasToCache = new List<HeightDelta>();
+
+            if (modified)
+            {
+                // Populate compression cache collection by comparing differences
+                for (int z = 0; z < res; z++)
+                {
+                    for (int x = 0; x < res; x++)
+                    {
+                        if (Mathf.Abs(currentHeights[z, x] - originalHeights[z, x]) > 0.00001f)
                         {
-                            var info = (TerrainInfo)AccessTools.Field(cell.GetType(), "terrainInfo").GetValue(cell);
-                            ProcessTileSync(cell, info, coord); // Forces immediate flat height
-                            break;
+                            deltasToCache.Add(new HeightDelta(x, z, currentHeights[z, x]));
                         }
                     }
                 }
+
+                data.SetHeights(0, 0, currentHeights);
+
+                Terrain gridCellTerrain = gridCell.terrain;
+                if (gridCellTerrain != null)
+                {
+                    FinalizeTile(coord, gridCellTerrain);
+                    var collider = gridCellTerrain.GetComponent<TerrainCollider>();
+                    if (collider != null) collider.terrainData = data;
+                }
+                
+                data.SyncHeightmap();
+                Debug.Log($"[DoubleTrack] Fixed tile {coord}. Cached {deltasToCache.Count} structural coordinates.");
             }
-        };
-    }
-    
-    // When a cell is unloaded, remove its coord from our sets 
-// so it is forced to re-patch if it reloads immediately.
-    private static void Unload_Prefix(object __instance)
-    {
-        try
-        {
-            var coordField = AccessTools.Field(__instance.GetType(), "coord");
-            if (coordField != null)
-            {
-                Vector2Int coord = (Vector2Int)coordField.GetValue(__instance);
-                ProcessedTiles.Remove(coord);
-                BusyTiles.Remove(coord);
-            }
+
+            CompressedHeightCache[coord] = deltasToCache;
         }
         catch (Exception e)
         {
-            UnityEngine.Debug.LogError("[DoubleTrack] Failed to clear tile state during Unload");
+            UnityEngine.Debug.LogError($"[DoubleTrack] Synchronous flattening failed for {coord}");
             UnityEngine.Debug.LogException(e);
         }
     }
-    
-    // This Prefix intercepts the TerrainInfo BEFORE the GridCell sets its internal status to 'Loaded'
-    private static bool _isResuming;
-    private static bool OnLoadingFinished_Prefix(object __instance, TerrainInfo info)
+
+
+    public static List<Vector3[]> IsTileNearTrack(Vector2Int coord)
     {
-        // If we are currently resuming the method manually, skip the prefix logic
-        if (_isResuming) return true;
-
-        Vector2Int coord = (Vector2Int)AccessTools.Field(__instance.GetType(), "coord").GetValue(__instance);
-
-        if (ProcessedTiles.Contains(coord) || BusyTiles.Contains(coord)) return true;
-
-        ProcessTileAsync(__instance, info, coord);
-        return false; // Stop the original call so we can finish our thread
-    }
-    
-    private static bool DisplayTerrain_Prefix(object __instance, Vector3 worldPosition)
-    {
-        Vector2Int coord = (Vector2Int)AccessTools.Field(__instance.GetType(), "coord").GetValue(__instance);
-    
-        // 1. If it's already done, proceed immediately
-        if (ProcessedTiles.Contains(coord)) return true;
-
-        // 2. If it's currently being calculated in the background, we MUST block 
-        // and wait to prevent the mountain from appearing.
-        if (BusyTiles.Contains(coord))
-        {
-            // We force a small wait or simply take over synchronously
-            // Forcing a sync patch here is the only way to guarantee no 'mountain pop'
-        }
-
-        // 3. Capture the info and FORCE a synchronous patch
-        var infoField = AccessTools.Field(__instance.GetType(), "terrainInfo");
-        TerrainInfo info = (TerrainInfo)infoField.GetValue(__instance);
-
-        if (info.terrainData != null)
-        {
-            // By calling this here, we 'steal' the work from the async thread if it hasn't finished
-            ProcessTileSync(__instance, info, coord);
-        }
-
-        return true;
-    }
-
-    private static void ProcessTileSync(object gridCell, TerrainInfo info, Vector2Int coord)
-{
-    // 1. Initial Validation
-    if (info.terrainData == null || TerrainGrid.Instance == null) return;
-
-    try 
-    {
-        TerrainData data = info.terrainData;
+        List<Vector3[]> relevantTracks = new List<Vector3[]>();
         
-        // --- STEP 1: CAPTURE DATA (Main Thread) ---
-        int res = data.heightmapResolution;
-        float[,] heights = data.GetHeights(0, 0, res, res);
-        float[,] originalHeights = (float[,])heights.Clone();
-        Vector3 tileSize = data.size;
-        
-        // Capture positions using Tile-Relative math for World Shift immunity
+        Vector3 tileSize = Vector3.one * TerrainGrid.Instance.TerrainSizeInWorld;
         Vector3 capturedTileWorldPos = TerrainGrid.Instance.ToWorldPosition(coord);
-        Vector3 worldShift = WorldMover.currentMove;
-
+        
         Bounds tileBounds = new Bounds(capturedTileWorldPos + tileSize * 0.5f, tileSize);
         tileBounds.Expand(BRUSH_SIZE * 2f);
-
-        var relevantTracks = new List<Vector3[]>();
+        
+        Vector3 worldShift = WorldMover.currentMove;
         
         if (AllTracksPatch.AddedTracks != null)
         {
@@ -161,10 +235,10 @@ public static class PersistentTerrainManager
 
                 Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
                 Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
-                
+
                 // Convert track points to Tile-Relative space immediately
                 Vector3[] relativePoints = new Vector3[pointSet.points.Length];
-                for (int i = 0; i < pointSet.points.Length; i++) 
+                for (int i = 0; i < pointSet.points.Length; i++)
                 {
                     Vector3 worldPt = (Vector3)pointSet.points[i].position + worldShift;
                     relativePoints[i] = worldPt - capturedTileWorldPos;
@@ -176,256 +250,53 @@ public static class PersistentTerrainManager
                 Bounds trackBounds = new Bounds();
                 trackBounds.SetMinMax(min, max);
                 trackBounds.Expand(BRUSH_SIZE);
-
-                if (tileBounds.Intersects(trackBounds)) 
-                    relevantTracks.Add(relativePoints);
-            }
-        }
-        
-        // --- STEP 2: CALCULATE (Main Thread - Synchronous) ---
-        // Because of Grid Clamping, this now takes milliseconds instead of minutes.
-        bool modified = false;
-        if (relevantTracks.Count > 0)
-        {
-            // We pass Vector3.zero because we are using Tile-Relative points.
-            modified = CalculateFlattening(heights, originalHeights, relevantTracks, Vector3.zero, tileSize, res);
-        }
-
-        // --- STEP 3: APPLY ---
-        if (data != null)
-        {
-            if (modified)
-            {
-                data.SetHeights(0, 0, heights);
-        
-                // Find the actual active terrain component
-                Terrain activeTerrain = TerrainGrid.Instance.GetLoadedTerrainAt(coord);
-                if (activeTerrain != null)
-                {
-                    activeTerrain.ApplyDelayedHeightmapModification(); 
-                    FinalizeTile(coord, activeTerrain);
-                        
-                    var collider = activeTerrain.GetComponent<TerrainCollider>();
-                    if (collider != null) collider.terrainData = data;
-                }
-        
-                data.SyncHeightmap();
-            }
-            // Mark as processed so the DisplayTerrain_Prefix doesn't run this again.
-            ProcessedTiles.Add(coord);
-        }
-    }
-    catch (Exception e)
-    {
-        UnityEngine.Debug.LogError($"[DoubleTrack] Synchronous flattening failed for {coord}");
-        UnityEngine.Debug.LogException(e);
-    }
-}
-    
-    private static async void ProcessTileAsync(object gridCell, TerrainInfo info, Vector2Int coord)
-    {
-        // 1. Fundamental Validation
-        if (info.terrainData == null || TerrainGrid.Instance == null) 
-        {
-            return;
-        }
-
-        bool success = false;
-        try 
-        {
-            BusyTiles.Add(coord);
-            TerrainData data = info.terrainData;
-            
-            // --- STEP 1: CAPTURE DATA (Main Thread) ---
-            int res = data.heightmapResolution;
-            float[,] heights = data.GetHeights(0, 0, res, res);
-            float[,] originalHeights = (float[,])heights.Clone();
-            Vector3 tileSize = data.size;
-            
-            // Capture the tile's world position and current world shift immediately.
-            // By calculating relative offsets now, we become immune to world shifts during the Task.
-            Vector3 capturedTileWorldPos = TerrainGrid.Instance.ToWorldPosition(coord);
-            Vector3 worldShift = WorldMover.currentMove;
-
-            Bounds tileBounds = new Bounds(capturedTileWorldPos + tileSize * 0.5f, tileSize);
-            tileBounds.Expand(BRUSH_SIZE * 2f);
-
-            var relevantTracks = new List<Vector3[]>();
-            
-            if (AllTracksPatch.AddedTracks != null)
-            {
-                foreach (var track in AllTracksPatch.AddedTracks)
-                {
-                    if (track == null) continue;
-
-                    EquiPointSet pointSet = track.GetKinkedPointSet();
-                    if (pointSet?.points == null) continue;
-
-                    Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
-                    Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
                     
-                    // Convert track points to Tile-Relative space immediately.
-                    // The formula (Point + CurrentShift) - TilePos is origin-independent.
-                    Vector3[] relativePoints = new Vector3[pointSet.points.Length];
-
-                    for (int i = 0; i < pointSet.points.Length; i++) 
-                    {
-                        Vector3 worldPt = (Vector3)pointSet.points[i].position + worldShift;
-                        relativePoints[i] = worldPt - capturedTileWorldPos;
-
-                        // Track bounds for intersection check
-                        min = Vector3.Min(min, worldPt);
-                        max = Vector3.Max(max, worldPt);
-                    }
-
-                    Bounds trackBounds = new Bounds();
-                    trackBounds.SetMinMax(min, max);
-                    trackBounds.Expand(BRUSH_SIZE);
-
-                    if (tileBounds.Intersects(trackBounds)) 
-                    {
-                        relevantTracks.Add(relativePoints);
-                    }
-                }
-            }
-            
-            // --- STEP 2: CALCULATE (Background Thread) ---
-            bool modified = false;
-            if (relevantTracks.Count > 0)
-            {
-                // We pass Vector3.zero as the tilePos because relevantTracks are already relative to the tile origin.
-                modified = await Task.Run(() => CalculateFlattening(heights, originalHeights, relevantTracks, Vector3.zero, tileSize, res));
-            }
-
-            // --- STEP 3: APPLY (Main Thread) ---
-            if (data != null)
-            {
-                if (modified)
-                {
-                    data.SetHeights(0, 0, heights);
-        
-                    // Find the actual active terrain component
-                    Terrain activeTerrain = TerrainGrid.Instance.GetLoadedTerrainAt(coord);
-                    if (activeTerrain != null)
-                    {
-                        activeTerrain.ApplyDelayedHeightmapModification();
-                        FinalizeTile(coord, activeTerrain);
-                        
-                        var collider = activeTerrain.GetComponent<TerrainCollider>();
-                        if (collider != null) collider.terrainData = data;
-                    }
-        
-                    data.SyncHeightmap();
-                }
-                success = true;
+                if (tileBounds.Intersects(trackBounds)) relevantTracks.Add(relativePoints);
             }
         }
-        catch (Exception e)
-        {
-            // This will now catch the NullRef and log exactly where it happened
-            UnityEngine.Debug.LogError($"[DoubleTrack] Flattening failed for {coord}. Instance status: TerrainGrid={TerrainGrid.Instance != null}, Tracks={AllTracksPatch.AddedTracks != null}");
-            UnityEngine.Debug.LogException(e);
-        }
-        finally
-        {
-            // RESUME ORIGINAL LOGIC
-            try 
-            {
-                var wrapperField = AccessTools.Field(gridCell.GetType(), "wrapper");
-                var currentWrapper = wrapperField?.GetValue(gridCell);
-
-                if (gridCell != null && currentWrapper != null)
-                {
-                    _isResuming = true;
-                    var resumeMethod = AccessTools.Method(gridCell.GetType(), "OnLoadingFinished");
-                    if (resumeMethod != null)
-                    {
-                        resumeMethod.Invoke(gridCell, new object[] { info });
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogError($"[DoubleTrack] Critical failure resuming GridCell for {coord}");
-                UnityEngine.Debug.LogException(ex);
-            }
-            finally
-            {
-                // --- THIS IS THE INNER FINALLY ---
-                _isResuming = false;
-                BusyTiles.Remove(coord); // Always remove so it's not 'stuck'
-
-                // ONLY add to Processed if the math actually finished successfully.
-                // If success is false (aborted or failed), the DisplayTerrain_Prefix 
-                // will see it's missing and force a Sync patch instead.
-                if (success) 
-                {
-                    ProcessedTiles.Add(coord);
-                }
-            }
-
-            // Final visual refresh
-            if (success && TerrainGrid.Instance != null)
-            {
-                Terrain activeTile = TerrainGrid.Instance.GetLoadedTerrainAt(coord);
-                if (activeTile != null && activeTile.terrainData != null) 
-                    ForceRendererRefresh(activeTile, info.terrainData, info.terrainData.heightmapResolution);
-            }
-        }
+        return relevantTracks;
     }
 
-    private static bool CalculateFlattening(float[,] heights, float[,] originalHeights, List<Vector3[]> tracks, Vector3 tilePos, Vector3 tileSize, int res)
+    private static bool CalculateFlattening(float[,] heights, float[,] originalHeights, List<Vector3[]> tracks, Vector3 tileSize, int res)
     {
         bool modified = false;
         float searchRadius = BRUSH_SIZE / 2f;
         float borderBuffer = BRUSH_SIZE;
         float[,] localWeights = new float[res, res];
-
+        
         foreach (var points in tracks)
         {
             for (int i = 0; i < points.Length - 1; i++)
             {
-                Vector3 pA = points[i]; 
+                Vector3 pA = points[i];
                 Vector3 pB = points[i + 1];
-
+                
                 // --- SPATIAL PRUNING ---
-                // Define the world-space box that this segment affects
                 float minX = Mathf.Min(pA.x, pB.x) - borderBuffer;
                 float maxX = Mathf.Max(pA.x, pB.x) + borderBuffer;
                 float minZ = Mathf.Min(pA.z, pB.z) - borderBuffer;
                 float maxZ = Mathf.Max(pA.z, pB.z) + borderBuffer;
-
-                // If the segment's impact box doesn't touch this tile at all, skip it immediately
-                if (maxX < tilePos.x || minX > tilePos.x + tileSize.x || 
-                    maxZ < tilePos.z || minZ > tilePos.z + tileSize.z) continue;
+                
+                if (maxX < 0f || minX > tileSize.x || maxZ < 0f || minZ > tileSize.z) continue;
 
                 // --- GRID CLAMPING ---
-                // Convert world bounds to heightmap array indices (0 to res-1)
-                int xStart = Mathf.Max(0, Mathf.FloorToInt(((minX - tilePos.x) / tileSize.x) * (res - 1)));
-                int xEnd = Mathf.Min(res - 1, Mathf.CeilToInt(((maxX - tilePos.x) / tileSize.x) * (res - 1)));
-                int zStart = Mathf.Max(0, Mathf.FloorToInt(((minZ - tilePos.z) / tileSize.z) * (res - 1)));
-                int zEnd = Mathf.Min(res - 1, Mathf.CeilToInt(((maxZ - tilePos.z) / tileSize.z) * (res - 1)));
-
-                // ONLY loop through the pixels inside the segment's bounding box
+                int xStart = Mathf.Max(0, Mathf.FloorToInt((minX / tileSize.x) * (res - 1)));
+                int xEnd = Mathf.Min(res - 1, Mathf.CeilToInt((maxX / tileSize.x) * (res - 1)));
+                int zStart = Mathf.Max(0, Mathf.FloorToInt((minZ / tileSize.z) * (res - 1)));
+                int zEnd = Mathf.Min(res - 1, Mathf.CeilToInt((maxZ / tileSize.z) * (res - 1)));
+                
                 for (int z = zStart; z <= zEnd; z++)
                 {
                     for (int x = xStart; x <= xEnd; x++)
                     {
-                        // Better Pixel Position calculation to minimize seam jitter
                         float stepSize = tileSize.x / (res - 1);
-                        Vector3 pixelPos = new Vector3(
-                            tilePos.x + (x * stepSize), 
-                            0, 
-                            tilePos.z + (z * stepSize)
-                        );
-
+                        Vector3 pixelPos = new Vector3(x * stepSize, 0, z * stepSize);
+                        
                         float dist = GetDistanceToSegment(pixelPos, pA, pB);
                         if (dist > searchRadius) continue;
-
-                        float weight = (dist <= SMOOTH_RADIUS) ? 1.0f : 
-                                       Mathf.SmoothStep(1, 0, (dist - SMOOTH_RADIUS) / (searchRadius - SMOOTH_RADIUS));
                         
-                        float targetH = (GetLerpedY(pixelPos, pA, pB) + VERTICAL_OFFSET - tilePos.y) / tileSize.y;
+                        float weight = (dist <= SMOOTH_RADIUS) ? 1.0f : Mathf.SmoothStep(1, 0, (dist - SMOOTH_RADIUS) / (searchRadius - SMOOTH_RADIUS));
+                        float targetH = (GetLerpedY(pixelPos, pA, pB) + VERTICAL_OFFSET) / tileSize.y;
 
                         if (weight > localWeights[z, x])
                         {
@@ -440,34 +311,6 @@ public static class PersistentTerrainManager
         return modified;
     }
 
-    private static void ForceRendererRefresh(Terrain tile, TerrainData data, int res)
-    {
-        // Use the correct property names from the decompile
-        float prevError = tile.heightmapPixelError;
-        tile.heightmapPixelError = 1.0f; 
-        
-        data.DirtyHeightmapRegion(new RectInt(0, 0, res, res), TerrainHeightmapSyncControl.HeightAndLod);
-        
-        // Force Renderer Reconstruction
-        tile.drawHeightmap = false;
-
-        // TC2 Sync
-        if (TC_Area2D.current != null && TC_Compute.instance != null)
-        {
-            TCUnityTerrain tc = TC_Area2D.current.currentTCUnityTerrain;
-            if (tc != null && tc.terrain == tile)
-            {
-                TC_Compute.instance.RunTerrainTexFromTerrainData(data, ref tc.rtHeight);
-                TC_Generate.instance.GenerateHeight(tc, true, new Rect(0, 0, 1, 1), false);
-            }
-        }
-
-        tile.drawHeightmap = true;
-        tile.heightmapPixelError = prevError;
-        tile.Flush();
-    }
-
-    // Thread-safe math helpers
     private static float GetDistanceToSegment(Vector3 p, Vector3 a, Vector3 b) {
         Vector2 p2 = new Vector2(p.x, p.z), a2 = new Vector2(a.x, a.z), b2 = new Vector2(b.x, b.z);
         Vector2 ab = b2 - a2;
@@ -475,63 +318,51 @@ public static class PersistentTerrainManager
         
         float dx = p2.x - (a2.x + t * ab.x);
         float dy = p2.y - (a2.y + t * ab.y);
-        float dist = Mathf.Sqrt(dx * dx + dy * dy);
-        
-        return dist;
+        return Mathf.Sqrt(dx * dx + dy * dy);
     }
+
     private static float GetLerpedY(Vector3 p, Vector3 a, Vector3 b) {
         Vector2 p2 = new Vector2(p.x, p.z), a2 = new Vector2(a.x, a.z), b2 = new Vector2(b.x, b.z);
         Vector2 ab = b2 - a2;
         float t = Mathf.Clamp01(Vector2.Dot(p2 - a2, ab) / Vector2.Dot(ab, ab));
         return Mathf.Lerp(a.y, b.y, t);
     }
-    
+
     private static void WeldSeams(Terrain current, Terrain neighbor, bool horizontal)
     {
         if (current == null || neighbor == null) return;
-
         int res = current.terrainData.heightmapResolution;
     
-        // We only need the single edge row/column from the neighbor
-        // and the single edge row/column from ourselves.
-        if (horizontal) // Current is Right, Neighbor is Left
+        if (horizontal)
         {
             float[,] theirEdge = neighbor.terrainData.GetHeights(res - 1, 0, 1, res);
             float[,] myHeights = current.terrainData.GetHeights(0, 0, 1, res);
-
+    
             for (int i = 0; i < res; i++) myHeights[i, 0] = theirEdge[i, 0];
-        
             current.terrainData.SetHeights(0, 0, myHeights);
         }
-        else // Current is Top, Neighbor is Bottom
+        else
         {
             float[,] theirEdge = neighbor.terrainData.GetHeights(0, res - 1, res, 1);
             float[,] myHeights = current.terrainData.GetHeights(0, 0, res, 1);
 
             for (int i = 0; i < res; i++) myHeights[0, i] = theirEdge[0, i];
-
             current.terrainData.SetHeights(0, 0, myHeights);
         }
     }
-    
+
     private static void FinalizeTile(Vector2Int coord, Terrain activeTerrain)
     {
-        // A tile only snaps to its Left and Bottom neighbors.
-        // This ensures every seam is reconciled exactly once without recursion.
         Terrain left = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.left);
         Terrain bottom = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.down);
 
         if (left != null) WeldSeams(activeTerrain, left, true);
         if (bottom != null) WeldSeams(activeTerrain, bottom, false);
-
-        // Also: If a Right or Top neighbor was already loaded before we finished,
-        // they need to snap to US now.
+        
         Terrain right = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.right);
         Terrain top = TerrainGrid.Instance.GetLoadedTerrainAt(coord + Vector2Int.up);
 
         if (right != null) WeldSeams(right, activeTerrain, true);
         if (top != null) WeldSeams(top, activeTerrain, false);
-
-        activeTerrain.Flush();
     }
 }

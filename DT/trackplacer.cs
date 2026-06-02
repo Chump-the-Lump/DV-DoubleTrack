@@ -1,23 +1,11 @@
 ﻿
-using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
-using Cysharp.Threading.Tasks.Triggers;
 using DV.CabControls;
 using DV.CabControls.NonVR;
 using DV.Interaction;
-using DV.Logic.Job;
-using DV.PointSet;
 using DV.Signs;
-using DV.TerrainSystem;
-using DV.TerrainTools;
-using DV.Utils;
 using UnityEngine;
 using HarmonyLib;
-using JBooth.MicroSplat;
 using Ludiq;
-using TerrainComposer2;
-using UnityModManagerNet;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
@@ -32,10 +20,10 @@ namespace DoubleTrack;
         private static GameObject railwayGo;
         private static List<string> LoadTargets()
         {
-            string path = Path.Combine(TrackPlacerEntry.ModEntry.Path, "target.txt");
+            string path = TrackPlacerEntry.TARGET_PATH;
             if (!File.Exists(path))
             {
-                Debug.LogWarning($"[DoubleTrack] target.txt not found at {path}");
+                Debug.LogWarning($"target.txt not found at {path}");
                 return new List<string>();
             }
 
@@ -147,8 +135,7 @@ namespace DoubleTrack;
                     RailTrack[] newMains = new[] { tempA[0], tempB[0], tempB[1] };
                     
                     Object.Destroy(tempA[1]);
-
-                    Debug.Log(mode.IndexOf('I'));
+                    
                     if (mode.IndexOf('I') == -1)
                     {
                         newTrack.name = "[y]_[doubletrack]_[Siding-" + trackCounter + "-D]";
@@ -191,16 +178,16 @@ namespace DoubleTrack;
             new GameObject("signPlacer", typeof(SignPlacer));
         }
 
-
         public static Junction SetUpPrefabJunction(RailTrack anchor, RailTrack mainMid, RailTrack siding, float xzOffset, string id, bool isDiverge)
         {
             string side = (xzOffset > 0) ^ !isDiverge ? "left" : "right";
 
-            GameObject template = GameObject.FindObjectsOfType<GameObject>()
-                .FirstOrDefault(go => go.name.StartsWith("junc-" + side) && go.transform.parent.name == "[railway]");
-
+            GameObject template = GameObject.FindObjectsOfType<GameObject>().FirstOrDefault(go => go.name.StartsWith("junc-" + side) && go.transform.parent.name == "[railway]");
+            
+            
             template.SetActive(false);
             GameObject juncGroup = Object.Instantiate(template, railwayParent);
+            
             template.SetActive(true);
 
             //LogAllComponents(juncGroup, id);
@@ -321,10 +308,8 @@ namespace DoubleTrack;
 
             AccessTools.Field(typeof(RailTrack), "initialized").SetValue(prefabThrough, false);
             AccessTools.Field(typeof(RailTrack), "initialized").SetValue(prefabDiverge, false);
-
-            //SingletonBehaviour<JunctionSwitcherManager>.Instance.AllowSwitchingForJunction(junction);
-
-            junction.gameObject.SetActive(true);
+            
+            
             juncGroup.SetActive(true);
             
             junction.gameObject.GetOrAddComponent<SwitchManager>();
