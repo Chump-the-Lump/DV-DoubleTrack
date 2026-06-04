@@ -1,6 +1,7 @@
 using System.Collections;
 using UnityEngine;
 using System.Collections.Generic;
+using DV.CabControls.VRTK;
 using DV.Utils;
 using HarmonyLib;
 using Rewired;
@@ -9,6 +10,14 @@ namespace DoubleTrack
 {
     public class RailTrackSceneManager : MonoBehaviour
     {
+        public struct MovedGeometryObject
+        {
+            public Vector3 NewPosition;
+            public Vector3 OldPosition;
+            public string Name;
+        }
+
+        public static Dictionary<string, List<MovedGeometryObject>> MovedObjectsRegistry = new Dictionary<string, List<MovedGeometryObject>>();
         private SceneSplitManager _sector;
         private List<Transform> _localColliderSegments;
         private bool _initialized = false;
@@ -22,6 +31,7 @@ namespace DoubleTrack
         void Start()
         {
             RemoveVanillaSignsAndColliders();
+            FixGeometry();
             if (!TileNameToRailTrack.TryGetValue(_sector.sceneName, out _localColliderSegments)) StartCoroutine(DeferredRegistration(5));
             else ActivateExistingTrack();
         }
@@ -77,6 +87,64 @@ namespace DoubleTrack
             }
         }
 
+        public void FixGeometry()
+        {
+            if (MovedObjectsRegistry.TryGetValue(gameObject.name, out List<MovedGeometryObject> movedGeometryObjects))
+            {
+                foreach (MovedGeometryObject movedGeometryObject in movedGeometryObjects)
+                {
+                    FindClosestChildByName(transform, movedGeometryObject.Name, movedGeometryObject.OldPosition).transform.localPosition = movedGeometryObject.NewPosition;
+                    Debug.Log("Moved obj " + movedGeometryObject.Name);
+                }
+            }
+        }
+        
+        public static GameObject FindClosestChildByName(Transform parent, string targetName, Vector3 targetPosition)
+        {
+            GameObject closestChild = null;
+            float closestDistanceSqr = Mathf.Infinity;
+
+            SearchChildrenRecursively(parent, targetName, targetPosition, ref closestChild, ref closestDistanceSqr);
+
+            return closestChild;
+        }
+
+        private static bool SearchChildrenRecursively(Transform current, string targetName, Vector3 targetLocalPosition, ref GameObject closestChild, ref float closestDistanceSqr)
+        {
+            foreach (Transform child in current)
+            {
+                if (child.name == targetName)
+                {
+                    // Calculate distance in local space instead of global world coordinates
+                    float distanceSqr = (child.localPosition - targetLocalPosition).sqrMagnitude;
+
+                    if (distanceSqr < closestDistanceSqr)
+                    {
+                        closestDistanceSqr = distanceSqr;
+                        closestChild = child.gameObject;
+
+                        // EARLY RETURN: If within 1 local unit, stop searching immediately
+                        if (distanceSqr <= 1.0f)
+                        {
+                            return true; 
+                        }
+                    }
+                }
+
+                // Drill down into deeper sub-hierarchies
+                if (child.childCount > 0)
+                {
+                    bool foundCloseMatch = SearchChildrenRecursively(child, targetName, targetLocalPosition, ref closestChild, ref closestDistanceSqr);
+                    if (foundCloseMatch)
+                    {
+                        return true; 
+                    }
+                }
+            }
+
+            return false; 
+        }
+    
         private void RemoveVanillaSignsAndColliders()
         {
             foreach (Transform child in GetComponentsInChildren<Transform>(true))

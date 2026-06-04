@@ -10,12 +10,23 @@ using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 namespace DoubleTrack;
+/*
+ * S - Standerd
+ * J - Junction
+ * T - Track
+ * E - Edit terrain (Allways true for S)
+ * M - Don't manage (J only)
+ * I - Invert (S only)
+ * O - Object
+ */
+
     
     public class AllTracksPatch
     {
         private static Transform railwayParent;
         public static List<RailTrack> AddedTracks = null;
         public static List<Junction> AddedJunctions = null;
+        public static Dictionary<string, RailTrack> ComplexJunctionEnds;
         public static int trackCounter;
         private static GameObject railwayGo;
         private static List<string> LoadTargets()
@@ -44,6 +55,8 @@ namespace DoubleTrack;
             
             AddedTracks = new List<RailTrack>();
             AddedJunctions = new List<Junction>();
+            ComplexJunctionEnds = new Dictionary<string, RailTrack>();
+            RailTrackSceneManager.MovedObjectsRegistry.Clear();
             trackCounter = 0;
             
             railwayGo = GameObject.Find("[railway]");
@@ -58,15 +71,9 @@ namespace DoubleTrack;
             foreach (string entry in targets)
             {
                 string[] parts = entry.Split(',');
-                
-                // Updated check: Mode, Name, Start, End, Offset, X, Z = 7 parts
-                if (parts.Length < 7) 
-                {
-                    Debug.LogWarning($"[DoubleTrack] Skipping invalid line (insufficient params): {entry}");
-                    continue;
-                }
 
                 string mode = parts[0].Trim().ToUpper();
+                
 
                 // 1. Handle Skip Mode (#)
                 if (mode.IndexOf('#') != -1)
@@ -74,28 +81,34 @@ namespace DoubleTrack;
                     Debug.Log($"[DoubleTrack] Skipping entry per '#' marker: {entry}");
                     continue;
                 }
-
-                // 2. Validate and Parse the rest of the parameters
-                // Note: Indices are shifted +1 compared to your previous code
-                string targetName = parts[1].Trim();
                 
-                string rawStart = parts[2].Trim();
-                string rawEnd = parts[3].Trim();
-
-                bool deadEndStart = rawStart.StartsWith("X", StringComparison.OrdinalIgnoreCase);
-                bool deadEndEnd = rawEnd.StartsWith("X", StringComparison.OrdinalIgnoreCase);
-
-        // Strip 'X' if present before parsing to int
-                if (!int.TryParse(deadEndStart ? rawStart.Substring(1) : rawStart, out int startIdx)) continue;
-                if (!int.TryParse(deadEndEnd ? rawEnd.Substring(1) : rawEnd, out int endIdx)) continue;
-                
-                if (!float.TryParse(parts[4], out float xzOffset)) continue;
-                if (!float.TryParse(parts[5], out float searchX)) continue;
-                if (!float.TryParse(parts[6], out float searchZ)) continue;
-
-                // 3. Handle Siding/Split Mode (S)
                 if (mode.IndexOf('S') != -1)
                 {
+                    // Updated check: Mode, Name, Start, End, Offset, X, Z = 7 parts
+                    if (parts.Length < 7) 
+                    {
+                        Debug.LogWarning($"[DoubleTrack] Skipping invalid line (insufficient params): {entry}");
+                        continue;
+                    }
+                    
+                    // 2. Validate and Parse the rest of the parameters
+                    // Note: Indices are shifted +1 compared to your previous code
+                    string targetName = parts[1].Trim();
+                
+                    string rawStart = parts[2].Trim();
+                    string rawEnd = parts[3].Trim();
+
+                    bool deadEndStart = rawStart.StartsWith("X", StringComparison.OrdinalIgnoreCase);
+                    bool deadEndEnd = rawEnd.StartsWith("X", StringComparison.OrdinalIgnoreCase);
+
+                    // Strip 'X' if present before parsing to int
+                    if (!int.TryParse(deadEndStart ? rawStart.Substring(1) : rawStart, out int startIdx)) continue;
+                    if (!int.TryParse(deadEndEnd ? rawEnd.Substring(1) : rawEnd, out int endIdx)) continue;
+                
+                    if (!float.TryParse(parts[4], out float xzOffset)) continue;
+                    if (!float.TryParse(parts[5], out float searchX)) continue;
+                    if (!float.TryParse(parts[6], out float searchZ)) continue;
+                    
                     trackCounter++;
                     Vector3 searchPos = new Vector3(searchX, 0, searchZ);
 
@@ -166,19 +179,247 @@ namespace DoubleTrack;
                         track.transform.SetParent(railwayParent);
                         track.gameObject.SetActive(true);
                     }
-                    
                     allTracks.Remove(template);
+                    allTracks.Add(newMains[1]);
+                    allTracks.Add(newTrack);
+
+                    newMains[0].name = template.name + "A";
+                    newMains[2].name = template.name + "B";
+                    
                     if(!allTracks.Contains(newMains[0]))allTracks.Add(newMains[0]);
                     if(!allTracks.Contains(newMains[2]))allTracks.Add(newMains[2]);
                     Object.Destroy(template);
                 }
+                
+                
+                
+                
+                else if (mode.IndexOf('J') != -1)
+                {
+                    // Updated check: Mode, Name, Start, End, Offset, X, Z = 7 parts
+                    if (parts.Length < 9) 
+                    {
+                        Debug.LogWarning($"[DoubleTrack] Skipping invalid line (insufficient params): {entry}");
+                        continue;
+                    }
+                    
+                    // 2. Validate and Parse the rest of the parameters
+                    // Note: Indices are shifted +1 compared to your previous code
+                    string targetName = parts[1].Trim();
+                    
+                    if (!int.TryParse(parts[2], out int node)) continue;
+                    if (!bool.TryParse(parts[3], out bool isDiverge)) continue;
+                    if (!bool.TryParse(parts[4], out bool flipDirection)) continue;
+                    if (!bool.TryParse(parts[5], out bool mirror)) continue;
+                    if (!float.TryParse(parts[6], out float searchX)) continue;
+                    if (!float.TryParse(parts[7], out float searchZ)) continue;
+                    string junctionID = parts[8].Trim();
+                    
+                    
+                    Vector3 searchPos = new Vector3(searchX, 0, searchZ);
+                    int offset = 1;
+                    if (mirror) offset = -1;
+                    
+                    RailTrack target = allTracks.Where(t => t.name == targetName).OrderBy(t => Vector2.Distance(new Vector2(t.transform.position.x, t.transform.position.z), new Vector2(searchPos.x, searchPos.z))).FirstOrDefault();
+                    
+                    if (target == null)
+                    {
+                        Debug.LogWarning($"[DoubleTrack] Could not find '{targetName}' near {searchX}, {searchZ}");
+                        continue;
+                    }
+                    target.gameObject.SetActive(false);
+                    
+                    RailTrack[] splitTrack = SplitTrackForJunction(target, node);
+                    if(!flipDirection) (splitTrack[0], splitTrack[1]) = (splitTrack[1], splitTrack[0]);
+
+                    Junction newJunction;
+                    
+                    if(!isDiverge)newJunction = SetUpPrefabJunction(splitTrack[0], splitTrack[1], null, offset, "Complex", flipDirection, mode.IndexOf('M') == -1, junctionID);
+                    else newJunction = SetUpPrefabJunction(splitTrack[0], null, splitTrack[1], offset, "Complex", flipDirection, mode.IndexOf('M') == -1, junctionID);
+
+                    splitTrack[0].gameObject.name = targetName + "A";
+                    splitTrack[1].gameObject.name = targetName + "B";
+                    
+                    foreach (RailTrack track in splitTrack)
+                    {
+                        track.curve.transform.parent = track.transform;
+                        track.transform.SetParent(railwayParent);
+                        track.gameObject.SetActive(true);
+                    }
+
+                    RailTrack endTrack = newJunction.outBranches[newJunction.outBranches[0].track.outBranch.track == null ? 0 : 1].track;
+                    
+                    ComplexJunctionEnds.Add(junctionID,endTrack);
+
+                    allTracks.Remove(target);
+                    allTracks.Add(splitTrack[0]);
+                    allTracks.Add(splitTrack[1]);
+                    if (mode.IndexOf('E') != -1)
+                    {
+                        AddedTracks.Add(splitTrack[0]);
+                        AddedTracks.Add(splitTrack[1]);
+                    }
+                    Object.Destroy(target);
+                }
+                
+                
+                
+                else if (mode.IndexOf('T') != -1)
+                {
+                    // Updated check: Mode, Name, Start, End, Offset, X, Z = 7 parts
+                    if (parts.Length < 5) 
+                    {
+                        Debug.LogWarning($"[DoubleTrack] Skipping invalid line (insufficient params): {entry}");
+                        continue;
+                    }
+                    
+                    string inTargetID = parts[1].Trim();
+                    string outTargetID = parts[2].Trim();
+                    string name = parts[3].Trim();
+                    string points = parts[4].Trim();
+                    
+                    Dictionary<string,float[]> pointsList = BezierOffsetTool.ParseTrackData(points);
+                    
+                    BezierCurve curve = new GameObject("Curve").AddComponent<BezierCurve>();
+                    
+                    BezierPoint startPoint = Object.Instantiate(ComplexJunctionEnds[inTargetID].curve.Last(), curve.transform, true);
+                    BezierPoint endPoint = Object.Instantiate(ComplexJunctionEnds[outTargetID].curve.Last(), curve.transform, true);
+
+                    startPoint.transform.localRotation = Quaternion.Euler(Vector3.zero);
+                    endPoint.transform.localRotation = Quaternion.Euler(Vector3.zero);
+                    
+                    
+                    curve.AddPoint(startPoint);
+
+                    Vector3 searchPos = ComplexJunctionEnds[inTargetID].transform.position;
+                    
+                    foreach (string key in pointsList.Keys)
+                    {
+                        if (pointsList[key].Length > 4) searchPos = new Vector3(pointsList[key][3], 0, pointsList[key][4]);
+                        
+                        BezierCurve targetCurve = allTracks.Where(t => t.name == key).OrderBy(t => Vector2.Distance(new Vector2(t.transform.position.x, t.transform.position.z), new Vector2(searchPos.x, searchPos.z))).FirstOrDefault().curve;
+                    
+                        if (targetCurve == null)
+                        {
+                            Debug.LogWarning($"[DoubleTrack] Could not find '{key}' near {searchPos.x}, {searchPos.z}");
+                            continue;
+                        }
+
+                        int startIndex = (int)pointsList[key][0];
+                        int endIndex = (int)pointsList[key][1];
+                        bool invert = false;
+                        if (startIndex > endIndex)
+                        {
+                            (startIndex, endIndex) = (endIndex, startIndex);
+                            invert = true;
+                        }
+                        
+
+                        BezierCurve tempCurve = BezierOffsetTool.CreateParallelCopy(targetCurve, startIndex, endIndex, pointsList[key][2], 0);
+                        //Finish using the curve combine method to remove the points from the cloned curve for each segment and add them to our new track
+                        BezierPoint[] tempPoints = tempCurve.GetAnchorPoints();
+                        if(invert) Array.Reverse(tempPoints);
+                        foreach (BezierPoint point in tempPoints)
+                        {
+                            if(invert)(point.handle1,point.handle2) = (point.handle2, point.handle1);
+                            
+                            if(point.handle1.magnitude < 1)point.handle1 = point.handle2 *-1f;
+                            if(point.handle2.magnitude < 1)point.handle2 = point.handle1 *-1f;
+                            
+                            curve.AddPoint(point);
+                            point.transform.parent = curve.transform;
+                        }
+                        Object.Destroy(tempCurve);
+                    }
+                    
+                    curve.AddPoint(endPoint);
+                    curve.resolution = 0.5f;
+                    curve.SetDirty();
+                    
+                    
+                    
+                    RailTrack template = allTracks[0];
+                    template.gameObject.SetActive(false);
+                    RailTrack newTrack = Object.Instantiate(template);
+                    template.gameObject.SetActive(true);
+                    
+                    
+                    newTrack.generateColliders = true;
+                    newTrack.name = name;
+                    
+                    
+                    AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTrack,curve);
+                    
+                    newTrack.curve.transform.parent = newTrack.transform;
+                    newTrack.inBranch = new Junction.Branch();
+                    newTrack.outBranch = new Junction.Branch();
+                    newTrack.inJunction = null;
+                    newTrack.outJunction = null;
+                    
+                    
+                    SnapTrackToPoint(newTrack, true, ComplexJunctionEnds[inTargetID].curve.Last());
+                    SnapTrackToPoint(newTrack, false, ComplexJunctionEnds[outTargetID].curve.Last());
+
+
+                    
+                    ComplexJunctionEnds[inTargetID].outBranch.track = newTrack;
+                    ComplexJunctionEnds[inTargetID].outBranch.first = true;
+                    
+                    ComplexJunctionEnds[outTargetID].outBranch.track = newTrack;
+                    ComplexJunctionEnds[outTargetID].outBranch.first = false;
+
+                    
+                    newTrack.inBranch.track = ComplexJunctionEnds[inTargetID];
+                    newTrack.inBranch.first = false;
+                    
+                    newTrack.outBranch.track = ComplexJunctionEnds[outTargetID];
+                    newTrack.outBranch.first = false;
+                    
+                    
+                    newTrack.transform.SetParent(railwayParent);
+                    newTrack.gameObject.SetActive(true);
+                    
+                    allTracks.Add(newTrack);
+                    
+                    if (mode.IndexOf('E') != -1)AddedTracks.Add(newTrack);
+                }
+                
+                else if (mode.IndexOf('O') != -1)
+                {
+                    if (parts.Length < 8) 
+                    {
+                        Debug.LogWarning($"[DoubleTrack] Skipping invalid line (insufficient params): {entry}");
+                        continue;
+                    }
+                    string sceneName = parts[1].Trim();
+                    string objectName = parts[2].Trim();
+                    if (!float.TryParse(parts[3], out float fromX)) continue;
+                    if (!float.TryParse(parts[4], out float fromY)) continue;
+                    if (!float.TryParse(parts[5], out float fromZ)) continue;
+                    if (!float.TryParse(parts[6], out float toX)) continue;
+                    if (!float.TryParse(parts[7], out float toY)) continue;
+                    if (!float.TryParse(parts[8], out float toZ)) continue;
+
+                    RailTrackSceneManager.MovedGeometryObject movedGeometryObject = new RailTrackSceneManager.MovedGeometryObject()
+                    {
+                        Name = objectName, 
+                        NewPosition = new Vector3(toX, toY, toZ),
+                        OldPosition = new Vector3(fromX, fromY, fromZ),
+                    };
+                    if (!RailTrackSceneManager.MovedObjectsRegistry.ContainsKey(sceneName)) RailTrackSceneManager.MovedObjectsRegistry.Add(sceneName, new List<RailTrackSceneManager.MovedGeometryObject>());
+                    RailTrackSceneManager.MovedObjectsRegistry[sceneName].Add(movedGeometryObject);
+                }
             }
+            
             
             
             new GameObject("signPlacer", typeof(SignPlacer));
         }
+        
+        
+        
 
-        public static Junction SetUpPrefabJunction(RailTrack anchor, RailTrack mainMid, RailTrack siding, float xzOffset, string id, bool isDiverge)
+        public static Junction SetUpPrefabJunction(RailTrack anchor, RailTrack mainMid, RailTrack siding, float xzOffset, string name, bool isDiverge, bool manage = true, string id = "")
         {
             string side = (xzOffset > 0) ^ !isDiverge ? "left" : "right";
 
@@ -192,7 +433,7 @@ namespace DoubleTrack;
 
             //LogAllComponents(juncGroup, id);
 
-            juncGroup.name = $"junc-{side}_{id}";
+            juncGroup.name = $"junc-{side}_{name}";
 
             RailTrack prefabThrough = juncGroup.transform.Find("[track through]").GetComponent<RailTrack>();
             RailTrack prefabDiverge = juncGroup.transform.Find("[track diverging]").GetComponent<RailTrack>();
@@ -253,8 +494,17 @@ namespace DoubleTrack;
             junctionData.junctionIndex = junctionCounter + 1000;
             junctionData.junctionId = junctionCounter;
             junctionData.position = junction.transform.position;
-            if(isDiverge) junctionData.junctionIdLong = "EXC-" + trackCounter.ToString("D4")+"-A";
-            else junctionData.junctionIdLong = "EXC-" + trackCounter.ToString("D4")+"-B";
+
+            if (id == "")
+            {
+                if (isDiverge) junctionData.junctionIdLong = "DT-" + trackCounter.ToString("D4") + "-A";
+                else junctionData.junctionIdLong = "DT-" + trackCounter.ToString("D4") + "-B";
+            }
+            else
+            {
+                junctionData.junctionIdLong = id;
+            }
+
             junction.junctionData = junctionData;
 
             // Positioning
@@ -269,8 +519,8 @@ namespace DoubleTrack;
 
 
 
-            SnapTrackToPoint(mainMid, isDiverge, prefabThrough.curve.Last());
-            SnapTrackToPoint(siding, isDiverge, prefabDiverge.curve.Last());
+            if(mainMid!=null)SnapTrackToPoint(mainMid, isDiverge, prefabThrough.curve.Last());
+            if(siding!=null)SnapTrackToPoint(siding, isDiverge, prefabDiverge.curve.Last());
 
 
             if (isDiverge)
@@ -279,12 +529,15 @@ namespace DoubleTrack;
                 anchor.outBranch = junction.outBranches[0];
 
                 prefabThrough.inBranch = junction.inBranch;
-                prefabThrough.outBranch = new Junction.Branch(mainMid, true);
-                mainMid.inBranch = new Junction.Branch(prefabThrough, false);
+                if(mainMid!=null)prefabThrough.outBranch = new Junction.Branch(mainMid, true);
+                if(mainMid!=null)mainMid.inBranch = new Junction.Branch(prefabThrough, false);
+                else prefabThrough.outBranch = new Junction.Branch();
+                
 
                 prefabDiverge.inBranch = junction.inBranch;
-                prefabDiverge.outBranch = new Junction.Branch(siding, true);
-                siding.inBranch = new Junction.Branch(prefabDiverge, false);
+                if(siding!=null)prefabDiverge.outBranch = new Junction.Branch(siding, true);
+                if(siding!=null)siding.inBranch = new Junction.Branch(prefabDiverge, false);
+                else prefabDiverge.outBranch = new Junction.Branch();
             }
             else
             {
@@ -292,12 +545,15 @@ namespace DoubleTrack;
                 anchor.inBranch = junction.outBranches[0];
 
                 prefabThrough.inBranch = junction.inBranch;
-                prefabThrough.outBranch = new Junction.Branch(mainMid, false);
-                mainMid.outBranch = new Junction.Branch(prefabThrough, false);
+                if(mainMid!=null)prefabThrough.outBranch = new Junction.Branch(mainMid, false);
+                if(mainMid!=null)mainMid.outBranch = new Junction.Branch(prefabThrough, false);
+                else prefabThrough.outBranch = new Junction.Branch();
 
                 prefabDiverge.inBranch = junction.inBranch;
-                prefabDiverge.outBranch = new Junction.Branch(siding, false);
-                siding.outBranch = new Junction.Branch(prefabDiverge, false);
+                if(siding!=null)prefabDiverge.outBranch = new Junction.Branch(siding, false);
+                if(siding!=null)siding.outBranch = new Junction.Branch(prefabDiverge, false);
+                else prefabDiverge.outBranch = new Junction.Branch();
+                
             }
 
             junction.defaultSelectedBranch = 0;
@@ -312,7 +568,8 @@ namespace DoubleTrack;
             
             juncGroup.SetActive(true);
             
-            junction.gameObject.GetOrAddComponent<SwitchManager>();
+            SwitchManager manager = junction.gameObject.GetOrAddComponent<SwitchManager>();
+            manager.enabled = manage;
             
             AddedJunctions.Add(junction);
 

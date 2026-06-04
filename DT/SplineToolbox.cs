@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 using HarmonyLib;
 using UnityEngine;
 
@@ -73,134 +74,210 @@ public class BezierOffsetTool : MonoBehaviour
         return newCurve;
     }
     
-    public static void TruncateCurve(BezierCurve curve, float distanceToShrink, bool useFirst)
+
+    
+public static BezierCurve CreateSmoothCurve(List<Vector3> positions, float percent = 0.33f)
 {
-    if (curve == null || curve.pointCount < 2) return;
-
-    // 1. Identify the segment to modify
-    int p0Idx = useFirst ? 0 : curve.pointCount - 2;
-    int p1Idx = useFirst ? 1 : curve.pointCount - 1;
-
-    Vector3 p0 = curve[p0Idx].position;
-    Vector3 p1 = curve[p0Idx].globalHandle2;
-    Vector3 p2 = curve[p1Idx].globalHandle1;
-    Vector3 p3 = curve[p1Idx].position;
-
-    // 2. Calculate T
-    // If useFirst, we want to find the point 'distanceToShrink' from the START.
-    // If !useFirst, we want the point 'distanceToShrink' from the END.
-    float t;
-    if (useFirst)
+    if (positions == null || positions.Count < 2)
     {
-        t = GetTForDistance(distanceToShrink, p0, p1, p2, p3);
-    }
-    else
-    {
-        // Reuse the logic to find T from the end
-        t = GetTForDistanceBackwards(distanceToShrink, p0, p1, p2, p3);
+        Debug.LogWarning("BezierCurve generation requires at least 2 points.");
+        return null;
     }
 
-    // 3. De Casteljau Math
-    Vector3 q0 = Vector3.Lerp(p0, p1, t);
-    Vector3 q1 = Vector3.Lerp(p1, p2, t);
-    Vector3 q2 = Vector3.Lerp(p2, p3, t);
-    Vector3 r0 = Vector3.Lerp(q0, q1, t);
-    Vector3 r1 = Vector3.Lerp(q1, q2, t);
-    Vector3 b  = Vector3.Lerp(r0, r1, t);
+    GameObject curveObj = new GameObject("Percentage_Track_Curve");
+    BezierCurve bezierCurve = curveObj.AddComponent<BezierCurve>();
 
-    // 4. Apply Changes
-    if (useFirst)
+    List<BezierPoint> spawnedPoints = new List<BezierPoint>();
+    foreach (Vector3 pos in positions)
     {
-        // Shrinking the START:
-        // Point 0 moves to B. 
-        // Point 0's Out-Handle moves to r1.
-        // Point 1's In-Handle moves to q2.
-        curve[p0Idx].position = b;
-        curve[p0Idx].handleStyle = BezierPoint.HandleStyle.Broken;
-        curve[p0Idx].globalHandle1 = b + (b - r1); // Maintain a straight projection back
-        curve[p0Idx].globalHandle2 = r1;
+        spawnedPoints.Add(bezierCurve.AddPointAt(pos));
+    }
 
-        curve[p1Idx].globalHandle1 = q2;
+    int count = positions.Count;
+
+    for (int i = 0; i < count; i++)
+    {
+        BezierPoint currentPoint = spawnedPoints[i];
+
+        // ALWAYS start with Broken so setting one handle doesn't automatically auto-mirror/clobber the other
+        currentPoint.handleStyle = BezierPoint.HandleStyle.Broken;
+
+        Vector3 flatForward;
+
+        // --- Endpoints ---
+        if (i == 0)
+        {
+            Vector3 segment = positions[1] - positions[0];
+            float distanceToNext = segment.magnitude;
+            flatForward = new Vector3(segment.x, 0f, segment.z).normalized;
+
+            // Use global handles to prevent issues with parent/local transform rotations
+            currentPoint.globalHandle2 = currentPoint.position + (flatForward * (distanceToNext * percent));
+            currentPoint.globalHandle1 = currentPoint.position - (flatForward * (distanceToNext * percent));
+
+            currentPoint.handleStyle = BezierPoint.HandleStyle.Connected;
+            continue;
+        }
+        if (i == count - 1)
+        {
+            Vector3 segment = positions[count - 1] - positions[count - 2];
+            float distanceToPrev = segment.magnitude;
+            flatForward = new Vector3(segment.x, 0f, segment.z).normalized;
+
+            currentPoint.globalHandle1 = currentPoint.position - (flatForward * (distanceToPrev * percent));
+            currentPoint.globalHandle2 = currentPoint.position + (flatForward * (distanceToPrev * percent));
+
+            currentPoint.handleStyle = BezierPoint.HandleStyle.Connected;
+            continue;
+        }
+
+        // --- Middle Nodes ---
+        Vector3 pPrev = positions[i - 1];
+        Vector3 pCurr = positions[i];
+        Vector3 pNext = positions[i + 1];
+
+        float distanceToPrevNode = Vector3.Distance(pPrev, pCurr);
+        float distanceToNextNode = Vector3.Distance(pCurr, pNext);
+
+        Vector3 unifiedChord = (pNext - pPrev);
+        flatForward = new Vector3(unifiedChord.x, 0f, unifiedChord.z).normalized;
+
+        // Calculate positions globally first
+        Vector3 targetGlobalH1 = pCurr - flatForward * (distanceToPrevNode * percent);
+        Vector3 targetGlobalH2 = pCurr + flatForward * (distanceToNextNode * percent);
+
+        // Proportional Rotation/Smoothing Step using Global Positions
+        Vector3 dirH1 = (targetGlobalH1 - pCurr).normalized;
+        Vector3 dirH2 = (targetGlobalH2 - pCurr).normalized;
+        Vector3 averagedDirection = (dirH2 - dirH1).normalized;
         
-        Debug.Log($"[TrackMod] Truncated START of {curve.name}. New Start: {b}");
-    }
-    else
-    {
-        // Shrinking the END:
-        // Point 0's Out-Handle moves to q0.
-        // Point 1 moves to B.
-        // Point 1's In-Handle moves to r0.
-        curve[p0Idx].globalHandle2 = q0;
+        float averageLength = (Vector3.Distance(targetGlobalH1, pCurr) + Vector3.Distance(targetGlobalH2, pCurr)) * 0.5f;
 
-        curve[p1Idx].position = b;
-        curve[p1Idx].handleStyle = BezierPoint.HandleStyle.Broken;
-        curve[p1Idx].globalHandle1 = r0;
-        curve[p1Idx].globalHandle2 = b + (b - r0);
-        
-        Debug.Log($"[TrackMod] Truncated END of {curve.name}. New End: {b}");
+        // Apply cleanly while handle style is still Broken
+        currentPoint.globalHandle1 = pCurr - averagedDirection * averageLength;
+        currentPoint.globalHandle2 = pCurr + averagedDirection * averageLength;
+
+        // Lock state now that both handles are safely set symmetrically
+        currentPoint.handleStyle = BezierPoint.HandleStyle.Connected;
     }
 
-    curve.dirty = true;
+    bezierCurve.SetDirty();
+    return bezierCurve;
 }
 
-    private static float GetTForDistance(float targetDistance, params Vector3[] points)
+public static Dictionary<string, float[]> ParseTrackData(string input)
     {
-        float totalLength = 0;
-        int samples = 100;
-        float[] dists = new float[samples + 1];
-        Vector3 prev = points[0];
+        Dictionary<string, float[]> result = new Dictionary<string, float[]>();
 
-        for (int i = 1; i <= samples; i++)
+        if (string.IsNullOrEmpty(input))
         {
-            Vector3 curr = BezierCurve.GetPoint(i / (float)samples, points);
-            totalLength += Vector3.Distance(prev, curr);
-            dists[i] = totalLength;
-            prev = curr;
+            return result;
         }
 
-        // Clamp target to ensure we don't go out of bounds
-        float actualTarget = Mathf.Clamp(targetDistance, 0.001f, totalLength - 0.001f);
+        // Regex matches everything inside curly braces: {[#] name(p1;p2;...)}
+        // \{      : matches literal '{'
+        // ([^\}]+): captures everything that isn't a closing curly brace
+        // \}      : matches literal '}'
+        MatchCollection blocks = Regex.Matches(input, @"\{([^\}]+)\}");
 
-        for (int i = 1; i <= samples; i++)
+        foreach (Match block in blocks)
         {
-            if (dists[i] >= actualTarget)
+            string content = block.Groups[1].Value; // Content inside -> "[#] Road 33(2;0;-10)"
+
+            // Find the opening and closing parentheses
+            int openParen = content.IndexOf('(');
+            int closeParen = content.LastIndexOf(')');
+
+            if (openParen == -1 || closeParen == -1 || closeParen < openParen)
             {
-                float segmentT = (actualTarget - dists[i - 1]) / (dists[i] - dists[i - 1]);
-                return ((i - 1) + segmentT) / samples;
+                continue; // Skip if parentheses are missing or malformed
             }
+
+            // Extract the key name (e.g., "[#] Road 33")
+            string key = content.Substring(0, openParen).Trim();
+
+            // Extract the raw parameters string inside the parentheses (e.g., "2;0;-10")
+            string rawParams = content.Substring(openParen + 1, closeParen - openParen - 1);
+
+            if (string.IsNullOrWhiteSpace(rawParams))
+            {
+                result[key] = new float[0];
+                continue;
+            }
+
+            // Split by semicolon
+            string[] tokens = rawParams.Split(';');
+            List<float> parsedNumbers = new List<float>();
+
+            foreach (string token in tokens)
+            {
+                if (float.TryParse(token.Trim(), out float val))
+                {
+                    parsedNumbers.Add(val);
+                }
+                else
+                {
+                    UnityEngine.Debug.LogWarning($"Failed to parse value '{token}' into an int for key '{key}'.");
+                }
+            }
+
+            // Map it to the dictionary
+            result[key] = parsedNumbers.ToArray();
         }
-        return 0.999f;
+
+        return result;
     }
-
+    
     /// <summary>
-    /// Finds the T value (0 to 1) at a specific distance from the END of the segment.
+    /// Parses a standardized string in the format "[0.0,1.0,2.0],[3.0,4.0,5.0]" into a List of Vector3s.
     /// </summary>
-    private static float GetTForDistanceBackwards(float distFromEnd, params Vector3[] points)
+    public static List<Vector3> ParseVecList(string input)
     {
-        float totalLen = 0;
-        int samples = 100;
-        float[] dists = new float[samples + 1];
-        Vector3 prev = points[0];
+        List<Vector3> vectorList = new List<Vector3>();
 
-        for (int i = 1; i <= samples; i++)
+        if (string.IsNullOrWhiteSpace(input))
         {
-            Vector3 curr = BezierCurve.GetPoint(i / (float)samples, points);
-            totalLen += Vector3.Distance(prev, curr);
-            dists[i] = totalLen;
-            prev = curr;
+            Debug.LogWarning("Input string is empty or null.");
+            return vectorList;
         }
 
-        // The target T is at (Total Length - Distance from end)
-        float target = Mathf.Max(0.001f, totalLen - distFromEnd);
-    
-        for (int i = 1; i <= samples; i++)
+        // 1. Strip the very outer leading '[' and trailing ']' brackets
+        string trimmed = input.Trim();
+        if (trimmed.StartsWith("[")) trimmed = trimmed.Substring(1);
+        if (trimmed.EndsWith("]")) trimmed = trimmed.Substring(0, trimmed.Length - 1);
+
+        // 2. Split into individual vector segments using the internal configuration "]["
+        // We use string arrays to handle the multi-character delimiter cleanly
+        string[] vectorSegments = trimmed.Split(new string[] { "][" }, StringSplitOptions.None);
+
+        foreach (string segment in vectorSegments)
         {
-            if (dists[i] >= target)
+            // Split the individual X, Y, Z components by their commas
+            string[] components = segment.Split(';');
+
+            if (components.Length == 3)
             {
-                float ratio = (target - dists[i - 1]) / (dists[i] - dists[i - 1]);
-                return ((i - 1) + ratio) / samples;
+                // InvariantCulture ensures that dots (.) are always parsed correctly regardless of system region
+                if (float.TryParse(components[0], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out float x) &&
+                    float.TryParse(components[1], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out float y) &&
+                    float.TryParse(components[2], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out float z))
+                {
+                    vectorList.Add(new Vector3(x, y, z));
+                }
+                else
+                {
+                    Debug.LogError($"Failed to parse float components in segment: {segment}");
+                }
+            }
+            else
+            {
+                Debug.LogError($"Segment did not contain exactly 3 components: {segment}");
             }
         }
-        return 0.001f;
+
+        return vectorList;
     }
 }
