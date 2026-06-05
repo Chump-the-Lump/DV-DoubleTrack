@@ -259,6 +259,8 @@ namespace DoubleTrack;
                         AddedTracks.Add(splitTrack[0]);
                         AddedTracks.Add(splitTrack[1]);
                     }
+
+                    if (AddedTracks.Contains(target)) AddedTracks.Remove(target);
                     Object.Destroy(target);
                 }
                 
@@ -295,7 +297,13 @@ namespace DoubleTrack;
                     
                     foreach (string key in pointsList.Keys)
                     {
+                        float tanLenght = -1;
+
+                        float yOffset = 0;
+                        
                         if (pointsList[key].Length > 4) searchPos = new Vector3(pointsList[key][3], 0, pointsList[key][4]);
+                        if (pointsList[key].Length > 5) yOffset = pointsList[key][5];
+                        if (pointsList[key].Length > 6) tanLenght = -pointsList[key][6];
                         
                         BezierCurve targetCurve = allTracks.Where(t => t.name == key).OrderBy(t => Vector2.Distance(new Vector2(t.transform.position.x, t.transform.position.z), new Vector2(searchPos.x, searchPos.z))).FirstOrDefault().curve;
                     
@@ -313,9 +321,14 @@ namespace DoubleTrack;
                             (startIndex, endIndex) = (endIndex, startIndex);
                             invert = true;
                         }
+                        else if (startIndex == endIndex && tanLenght >0 )
+                        {
+                            invert = true;
+                            tanLenght *= -1;
+                        }
                         
 
-                        BezierCurve tempCurve = BezierOffsetTool.CreateParallelCopy(targetCurve, startIndex, endIndex, pointsList[key][2], 0);
+                        BezierCurve tempCurve = BezierOffsetTool.CreateParallelCopy(targetCurve, startIndex, endIndex, pointsList[key][2], yOffset);
                         //Finish using the curve combine method to remove the points from the cloned curve for each segment and add them to our new track
                         BezierPoint[] tempPoints = tempCurve.GetAnchorPoints();
                         if(invert) Array.Reverse(tempPoints);
@@ -323,8 +336,11 @@ namespace DoubleTrack;
                         {
                             if(invert)(point.handle1,point.handle2) = (point.handle2, point.handle1);
                             
-                            if(point.handle1.magnitude < 1)point.handle1 = point.handle2 *-1f;
-                            if(point.handle2.magnitude < 1)point.handle2 = point.handle1 *-1f;
+                            if(point.handle1.magnitude <= 1.1)
+                            {
+                                point.handle1 = point.handle2 * tanLenght;
+                            }
+                            if(point.handle2.magnitude <= 1.1)point.handle2 = point.handle1 * tanLenght;
                             
                             curve.AddPoint(point);
                             point.transform.parent = curve.transform;
