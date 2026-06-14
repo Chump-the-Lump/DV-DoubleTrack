@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using HarmonyLib;
 using UnityEngine;
 
-public class BezierOffsetTool : MonoBehaviour
+public static class BezierOffsetTool
 {
     /// <summary>
     /// Creates a parallel segment of an existing BezierCurve with independent horizontal and vertical offsets.
@@ -73,211 +73,344 @@ public class BezierOffsetTool : MonoBehaviour
 
         return newCurve;
     }
-    
 
+    public static Dictionary<string, float[]> ParseTrackData(string input)
+        {
+            Dictionary<string, float[]> result = new Dictionary<string, float[]>();
+
+            if (string.IsNullOrEmpty(input))
+            {
+                return result;
+            }
+
+            // Regex matches everything inside curly braces: {[#] name(p1;p2;...)}
+            // \{      : matches literal '{'
+            // ([^\}]+): captures everything that isn't a closing curly brace
+            // \}      : matches literal '}'
+            MatchCollection blocks = Regex.Matches(input, @"\{([^\}]+)\}");
+
+            foreach (Match block in blocks)
+            {
+                string content = block.Groups[1].Value; // Content inside -> "[#] Road 33(2;0;-10)"
+
+                // Find the opening and closing parentheses
+                int openParen = content.IndexOf('(');
+                int closeParen = content.LastIndexOf(')');
+
+                if (openParen == -1 || closeParen == -1 || closeParen < openParen)
+                {
+                    continue; // Skip if parentheses are missing or malformed
+                }
+
+                // Extract the key name (e.g., "[#] Road 33")
+                string key = content.Substring(0, openParen).Trim();
+
+                // Extract the raw parameters string inside the parentheses (e.g., "2;0;-10")
+                string rawParams = content.Substring(openParen + 1, closeParen - openParen - 1);
+
+                if (string.IsNullOrWhiteSpace(rawParams))
+                {
+                    result[key] = new float[0];
+                    continue;
+                }
+
+                // Split by semicolon
+                string[] tokens = rawParams.Split(';');
+                List<float> parsedNumbers = new List<float>();
+
+                foreach (string token in tokens)
+                {
+                    if (float.TryParse(token.Trim(), out float val))
+                    {
+                        parsedNumbers.Add(val);
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogWarning($"Failed to parse value '{token}' into an int for key '{key}'.");
+                    }
+                }
+
+                // Map it to the dictionary
+                result[key] = parsedNumbers.ToArray();
+            }
+
+            return result;
+        }
     
-public static BezierCurve CreateSmoothCurve(List<Vector3> positions, float percent = 0.33f)
+    public static BezierPoint InsertPointAtDistance(this BezierCurve curve, BezierPoint startPoint, float distance)
 {
-    if (positions == null || positions.Count < 2)
+    // If distance is exactly 0, there's nothing to insert
+    if (curve == null || startPoint == null || Mathf.Approximately(distance, 0f)) return null;
+
+    // 1. Find the index of the starting point
+    int startIndex = curve.GetPointIndex(startPoint);
+    if (startIndex == -1)
     {
-        Debug.LogWarning("BezierCurve generation requires at least 2 points.");
+        Debug.LogError("Start point is not part of the provided BezierCurve.");
         return null;
     }
 
-    GameObject curveObj = new GameObject("Percentage_Track_Curve");
-    BezierCurve bezierCurve = curveObj.AddComponent<BezierCurve>();
+    BezierPoint segmentStart;
+    BezierPoint segmentEnd;
+    int insertIndex;
+    float targetForwardDistance;
 
-    List<BezierPoint> spawnedPoints = new List<BezierPoint>();
-    foreach (Vector3 pos in positions)
+    // 2. Resolve segment direction and convert negative distance to a forward target
+    if (distance > 0f)
     {
-        spawnedPoints.Add(bezierCurve.AddPointAt(pos));
+        int nextIndex = startIndex + 1;
+        if (nextIndex >= curve.pointCount)
+        {
+            if (curve.close) nextIndex = 0;
+            else return null; // Can't go past the end of an open curve
+        }
+
+        segmentStart = startPoint;
+        segmentEnd = curve[nextIndex];
+        insertIndex = startIndex + 1;
+        targetForwardDistance = distance;
     }
-
-    int count = positions.Count;
-
-    for (int i = 0; i < count; i++)
+    else
     {
-        BezierPoint currentPoint = spawnedPoints[i];
-
-        // ALWAYS start with Broken so setting one handle doesn't automatically auto-mirror/clobber the other
-        currentPoint.handleStyle = BezierPoint.HandleStyle.Broken;
-
-        Vector3 flatForward;
-
-        // --- Endpoints ---
-        if (i == 0)
+        // Distance is negative: target the preceding segment
+        int prevIndex = startIndex - 1;
+        if (prevIndex < 0)
         {
-            Vector3 segment = positions[1] - positions[0];
-            float distanceToNext = segment.magnitude;
-            flatForward = new Vector3(segment.x, 0f, segment.z).normalized;
-
-            // Use global handles to prevent issues with parent/local transform rotations
-            currentPoint.globalHandle2 = currentPoint.position + (flatForward * (distanceToNext * percent));
-            currentPoint.globalHandle1 = currentPoint.position - (flatForward * (distanceToNext * percent));
-
-            currentPoint.handleStyle = BezierPoint.HandleStyle.Connected;
-            continue;
-        }
-        if (i == count - 1)
-        {
-            Vector3 segment = positions[count - 1] - positions[count - 2];
-            float distanceToPrev = segment.magnitude;
-            flatForward = new Vector3(segment.x, 0f, segment.z).normalized;
-
-            currentPoint.globalHandle1 = currentPoint.position - (flatForward * (distanceToPrev * percent));
-            currentPoint.globalHandle2 = currentPoint.position + (flatForward * (distanceToPrev * percent));
-
-            currentPoint.handleStyle = BezierPoint.HandleStyle.Connected;
-            continue;
+            if (curve.close) prevIndex = curve.pointCount - 1;
+            else return null; // Can't go behind the start of an open curve
         }
 
-        // --- Middle Nodes ---
-        Vector3 pPrev = positions[i - 1];
-        Vector3 pCurr = positions[i];
-        Vector3 pNext = positions[i + 1];
-
-        float distanceToPrevNode = Vector3.Distance(pPrev, pCurr);
-        float distanceToNextNode = Vector3.Distance(pCurr, pNext);
-
-        Vector3 unifiedChord = (pNext - pPrev);
-        flatForward = new Vector3(unifiedChord.x, 0f, unifiedChord.z).normalized;
-
-        // Calculate positions globally first
-        Vector3 targetGlobalH1 = pCurr - flatForward * (distanceToPrevNode * percent);
-        Vector3 targetGlobalH2 = pCurr + flatForward * (distanceToNextNode * percent);
-
-        // Proportional Rotation/Smoothing Step using Global Positions
-        Vector3 dirH1 = (targetGlobalH1 - pCurr).normalized;
-        Vector3 dirH2 = (targetGlobalH2 - pCurr).normalized;
-        Vector3 averagedDirection = (dirH2 - dirH1).normalized;
+        segmentStart = curve[prevIndex];
+        segmentEnd = startPoint;
+        insertIndex = startIndex; // Inserting here pushes startPoint down the array index
         
-        float averageLength = (Vector3.Distance(targetGlobalH1, pCurr) + Vector3.Distance(targetGlobalH2, pCurr)) * 0.5f;
-
-        // Apply cleanly while handle style is still Broken
-        currentPoint.globalHandle1 = pCurr - averagedDirection * averageLength;
-        currentPoint.globalHandle2 = pCurr + averagedDirection * averageLength;
-
-        // Lock state now that both handles are safely set symmetrically
-        currentPoint.handleStyle = BezierPoint.HandleStyle.Connected;
+        // Convert negative offset into the equivalent positive forward distance from segmentStart
+        float segmentLength = BezierCurve.ApproximateLength(segmentStart, segmentEnd, curve.resolution);
+        targetForwardDistance = segmentLength + distance; // e.g., Length 50 + (-10) = 40 forward
     }
 
-    bezierCurve.SetDirty();
-    return bezierCurve;
-}
-
-public static Dictionary<string, float[]> ParseTrackData(string input)
+    // 3. Validate target distance against total segment boundary
+    float totalSegmentLength = BezierCurve.ApproximateLength(segmentStart, segmentEnd, curve.resolution);
+    if (targetForwardDistance >= totalSegmentLength || targetForwardDistance <= 0f)
     {
-        Dictionary<string, float[]> result = new Dictionary<string, float[]>();
-
-        if (string.IsNullOrEmpty(input))
-        {
-            return result;
-        }
-
-        // Regex matches everything inside curly braces: {[#] name(p1;p2;...)}
-        // \{      : matches literal '{'
-        // ([^\}]+): captures everything that isn't a closing curly brace
-        // \}      : matches literal '}'
-        MatchCollection blocks = Regex.Matches(input, @"\{([^\}]+)\}");
-
-        foreach (Match block in blocks)
-        {
-            string content = block.Groups[1].Value; // Content inside -> "[#] Road 33(2;0;-10)"
-
-            // Find the opening and closing parentheses
-            int openParen = content.IndexOf('(');
-            int closeParen = content.LastIndexOf(')');
-
-            if (openParen == -1 || closeParen == -1 || closeParen < openParen)
-            {
-                continue; // Skip if parentheses are missing or malformed
-            }
-
-            // Extract the key name (e.g., "[#] Road 33")
-            string key = content.Substring(0, openParen).Trim();
-
-            // Extract the raw parameters string inside the parentheses (e.g., "2;0;-10")
-            string rawParams = content.Substring(openParen + 1, closeParen - openParen - 1);
-
-            if (string.IsNullOrWhiteSpace(rawParams))
-            {
-                result[key] = new float[0];
-                continue;
-            }
-
-            // Split by semicolon
-            string[] tokens = rawParams.Split(';');
-            List<float> parsedNumbers = new List<float>();
-
-            foreach (string token in tokens)
-            {
-                if (float.TryParse(token.Trim(), out float val))
-                {
-                    parsedNumbers.Add(val);
-                }
-                else
-                {
-                    UnityEngine.Debug.LogWarning($"Failed to parse value '{token}' into an int for key '{key}'.");
-                }
-            }
-
-            // Map it to the dictionary
-            result[key] = parsedNumbers.ToArray();
-        }
-
-        return result;
+        Debug.LogWarning("Requested distance falls outside the boundary of the target curve segment. Node not inserted.");
+        return null;
     }
+
+    // 4. Convert absolute forward distance to local time parameter 't' (0 to 1)
+    float t = FindLocalTAtDistance(segmentStart, segmentEnd, targetForwardDistance, totalSegmentLength, curve.resolution);
+
+    // 5. De Casteljau's algorithm using the resolved forward endpoints
+    Vector3 p0 = segmentStart.position;
+    Vector3 p1 = segmentStart.globalHandle2;
+    Vector3 p2 = segmentEnd.globalHandle1;
+    Vector3 p3 = segmentEnd.position;
+
+    Vector3 q0 = Vector3.Lerp(p0, p1, t);
+    Vector3 q1 = Vector3.Lerp(p1, p2, t);
+    Vector3 q2 = Vector3.Lerp(p2, p3, t);
+
+    Vector3 r0 = Vector3.Lerp(q0, q1, t);
+    Vector3 r1 = Vector3.Lerp(q1, q2, t);
+
+    Vector3 splitPosition = Vector3.Lerp(r0, r1, t);
+
+    // 6. Insert the new node at the resolved array index position
+    BezierPoint newPoint = curve.InsertPointAt(insertIndex, splitPosition);
+
+    // 7. Update handles using the unified forward segment pieces
+    segmentStart.globalHandle2 = q0;
     
-    /// <summary>
-    /// Parses a standardized string in the format "[0.0,1.0,2.0],[3.0,4.0,5.0]" into a List of Vector3s.
-    /// </summary>
-    public static List<Vector3> ParseVecList(string input)
-    {
-        List<Vector3> vectorList = new List<Vector3>();
+    newPoint.handleStyle = BezierPoint.HandleStyle.Connected;
+    newPoint.globalHandle1 = r0;
+    newPoint.globalHandle2 = r1;
 
-        if (string.IsNullOrWhiteSpace(input))
+    segmentEnd.globalHandle1 = q2;
+
+    curve.SetDirty();
+
+    return newPoint;
+}
+    
+public static BezierPoint InsertStraightExtension(this BezierCurve curve, BezierPoint startPoint, float distance)
+    {
+        if (curve == null || startPoint == null || Mathf.Approximately(distance, 0f)) return null;
+
+        int startIndex = curve.GetPointIndex(startPoint);
+        if (startIndex == -1)
         {
-            Debug.LogWarning("Input string is empty or null.");
-            return vectorList;
+            Debug.LogError("Start point is not part of the provided BezierCurve.");
+            return null;
         }
 
-        // 1. Strip the very outer leading '[' and trailing ']' brackets
-        string trimmed = input.Trim();
-        if (trimmed.StartsWith("[")) trimmed = trimmed.Substring(1);
-        if (trimmed.EndsWith("]")) trimmed = trimmed.Substring(0, trimmed.Length - 1);
+        BezierPoint segmentStart;
+        BezierPoint segmentEnd;
+        int insertIndex;
+        Vector3 tangentDirection;
+        bool isForward = distance > 0f;
 
-        // 2. Split into individual vector segments using the internal configuration "]["
-        // We use string arrays to handle the multi-character delimiter cleanly
-        string[] vectorSegments = trimmed.Split(new string[] { "][" }, StringSplitOptions.None);
-
-        foreach (string segment in vectorSegments)
+        // 1. Resolve direction and isolate the exact vector ray
+        if (isForward)
         {
-            // Split the individual X, Y, Z components by their commas
-            string[] components = segment.Split(';');
-
-            if (components.Length == 3)
+            int nextIndex = startIndex + 1;
+            if (nextIndex >= curve.pointCount)
             {
-                // InvariantCulture ensures that dots (.) are always parsed correctly regardless of system region
-                if (float.TryParse(components[0], System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out float x) &&
-                    float.TryParse(components[1], System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out float y) &&
-                    float.TryParse(components[2], System.Globalization.NumberStyles.Float,
-                        System.Globalization.CultureInfo.InvariantCulture, out float z))
-                {
-                    vectorList.Add(new Vector3(x, y, z));
-                }
-                else
-                {
-                    Debug.LogError($"Failed to parse float components in segment: {segment}");
-                }
+                if (curve.close) nextIndex = 0;
+                else return null; 
+            }
+
+            segmentStart = startPoint;
+            segmentEnd = curve[nextIndex];
+            insertIndex = startIndex + 1;
+
+            tangentDirection = (segmentStart.globalHandle2 - segmentStart.position).normalized;
+            if (tangentDirection == Vector3.zero) tangentDirection = segmentStart.transform.forward;
+        }
+        else
+        {
+            int prevIndex = startIndex - 1;
+            if (prevIndex < 0)
+            {
+                if (curve.close) prevIndex = curve.pointCount - 1;
+                else return null;
+            }
+
+            segmentStart = curve[prevIndex];
+            segmentEnd = startPoint;
+            insertIndex = startIndex;
+
+            tangentDirection = (segmentEnd.position - segmentEnd.globalHandle1).normalized;
+            if (tangentDirection == Vector3.zero) tangentDirection = segmentEnd.transform.forward;
+            
+            distance = Mathf.Abs(distance); 
+        }
+
+        // 2. Position the new node along the true straight projection ray
+        Vector3 p0 = segmentStart.position;
+        Vector3 p3 = segmentEnd.position;
+        Vector3 newPointPos = isForward ? (p0 + tangentDirection * distance) : (p3 - tangentDirection * distance);
+
+        // Save original destination handles before inserting the new point shifts hierarchy data
+        Vector3 originalEndHandle1 = segmentEnd.globalHandle1;
+        Vector3 originalStartHandle2 = segmentStart.globalHandle2;
+
+        // 3. Insert the node
+        BezierPoint newPoint = curve.InsertPointAt(insertIndex, newPointPos);
+        newPoint.handleStyle = BezierPoint.HandleStyle.Connected;
+
+        // 4. Calculate the remaining gap distance to properly scale the blending handles
+        float remainingDistance = Vector3.Distance(newPointPos, isForward ? p3 : p0);
+        float blendHandleLength = remainingDistance * 0.33f;
+
+        if (isForward)
+        {
+            // Segment 1 (Straight): segmentStart to newPoint
+            // Keep segmentStart.globalHandle2 exactly as it was.
+            newPoint.globalHandle1 = newPointPos - (tangentDirection * (distance * 0.33f));
+
+            // Segment 2 (The Blend): newPoint to segmentEnd
+            // Force the outgoing handle to stay perfectly parallel with the straight path
+            newPoint.globalHandle2 = newPointPos + (tangentDirection * blendHandleLength);
+
+            // Keep the destination node's incoming handle angle unchanged, but scale its magnitude 
+            // relative to the shortened gap distance to prevent excessive ballooning or looping.
+            Vector3 endTangentDir = (originalEndHandle1 - p3).normalized;
+            if (endTangentDir == Vector3.zero) endTangentDir = -segmentEnd.transform.forward;
+            segmentEnd.globalHandle1 = p3 + (endTangentDir * blendHandleLength);
+        }
+        else
+        {
+            // Segment 1 (The Blend): segmentStart to newPoint
+            Vector3 startTangentDir = (originalStartHandle2 - p0).normalized;
+            if (startTangentDir == Vector3.zero) startTangentDir = segmentStart.transform.forward;
+            segmentStart.globalHandle2 = p0 + (startTangentDir * blendHandleLength);
+
+            newPoint.globalHandle1 = newPointPos - (tangentDirection * blendHandleLength);
+
+            // Segment 2 (Straight): newPoint to segmentEnd
+            newPoint.globalHandle2 = newPointPos + (tangentDirection * (distance * 0.33f));
+            // segmentEnd.globalHandle1 stays exactly as it was
+        }
+
+        curve.SetDirty();
+        return newPoint;
+    }
+
+    /// <summary>
+    /// Helper method using binary/linear search approximation to map a world distance to a local t parameter.
+    /// </summary>
+    private static float FindLocalTAtDistance(BezierPoint p1, BezierPoint p2, float targetDistance, float totalLength, float resolution)
+    {
+        float low = 0f;
+        float high = 1f;
+        float t = targetDistance / totalLength; // Initial linear guess
+
+        // 5 iterations of binary refinement are usually more than enough for precise tracking paths
+        for (int i = 0; i < 5; i++)
+        {
+            float currentDist = BezierCurve.ApproximateLength(p1.position, p1.globalHandle2, p2.position, p2.globalHandle1, Mathf.RoundToInt(resolution)) * t; // rough lower clamp
+            
+            // Re-evaluating actual segment sub-slice length
+            float evaluatedDist = ApproximateSubSegmentLength(p1, p2, t, resolution);
+
+            if (Mathf.Abs(evaluatedDist - targetDistance) < 0.01f)
+                break;
+
+            if (evaluatedDist < targetDistance)
+            {
+                low = t;
+                t = (t + high) / 2f;
             }
             else
             {
-                Debug.LogError($"Segment did not contain exactly 3 components: {segment}");
+                high = t;
+                t = (low + t) / 2f;
             }
         }
-
-        return vectorList;
+        return t;
     }
+
+    private static float ApproximateSubSegmentLength(BezierPoint p1, BezierPoint p2, float t, float resolution)
+    {
+        int steps = Mathf.Max(3, Mathf.RoundToInt(resolution));
+        float length = 0f;
+        Vector3 lastPos = p1.position;
+
+        for (int i = 1; i <= steps; i++)
+        {
+            float subT = (i / (float)steps) * t;
+            Vector3 currentPos = BezierCurve.GetPoint(p1, p2, subT);
+            length += (currentPos - lastPos).magnitude;
+            lastPos = currentPos;
+        }
+        return length;
+    }
+    
+    public static void ScaleEndTangents(this BezierCurve curve, bool targetEndNode, float scaleFactor)
+    {
+        if (curve == null || curve.pointCount < 2)
+        {
+            Debug.LogWarning("Curve must have at least two points to scale end tangents.");
+            return;
+        }
+        
+        
+        if (targetEndNode)
+        {
+            int lastIndex = curve.pointCount - 1;
+            int neighborIndex = lastIndex - 1;
+
+            curve[lastIndex].handle1 *= scaleFactor;
+            curve[neighborIndex].handle2 *= scaleFactor;
+        }
+        else
+        {
+            curve[0].handle2 *= scaleFactor;
+            curve[1].handle1 *= scaleFactor;
+        }
+
+        // Mark the curve as dirty so lengths and visuals update
+        curve.SetDirty();
+    }
+    
 }

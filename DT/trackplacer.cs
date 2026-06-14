@@ -57,6 +57,7 @@ namespace DoubleTrack;
             AddedJunctions = new List<Junction>();
             ComplexJunctionEnds = new Dictionary<string, RailTrack>();
             RailTrackSceneManager.MovedObjectsRegistry.Clear();
+            SignalFixer.AdditionalSignalsToFix.Clear();
             trackCounter = 0;
             
             railwayGo = GameObject.Find("[railway]");
@@ -76,11 +77,7 @@ namespace DoubleTrack;
                 
 
                 // 1. Handle Skip Mode (#)
-                if (mode.IndexOf('#') != -1)
-                {
-                    Debug.Log($"[DoubleTrack] Skipping entry per '#' marker: {entry}");
-                    continue;
-                }
+                if (mode.IndexOf('#') != -1)continue;
                 
                 if (mode.IndexOf('S') != -1)
                 {
@@ -148,23 +145,30 @@ namespace DoubleTrack;
                     RailTrack[] newMains = new[] { tempA[0], tempB[0], tempB[1] };
                     
                     Object.Destroy(tempA[1]);
-                    
-                    if (mode.IndexOf('I') == -1)
+                    if (mode.IndexOf('M') == -1)
                     {
-                        newTrack.name = "[y]_[doubletrack]_[Siding-" + trackCounter + "-D]";
-                        newMains[1].name = "[y#]_[doubletrack]_[Main-" + trackCounter + "-T]";
+                        if (mode.IndexOf('I') == -1)
+                        {
+                            newTrack.name = "[y]_[doubletrack]_[Siding-" + trackCounter + "-D]";
+                            newMains[1].name = "[y#]_[doubletrack]_[Main-" + trackCounter + "-T]";
+                        }
+                        else
+                        {
+                            newMains[1].name = "[y]_[doubletrack]_[Siding-" + trackCounter + "-T]";
+                            newTrack.name = "[y#]_[doubletrack]_[Main-" + trackCounter + "-D]";
+                        }
                     }
                     else
                     {
-                        newMains[1].name = "[y]_[doubletrack]_[Siding-" + trackCounter + "-T]";
-                        newTrack.name = "[y#]_[doubletrack]_[Main-" + trackCounter + "-D]";
+                        newTrack.name = "DT-" + trackCounter + "-D";
+                        newMains[1].name = "DT-" + trackCounter + "-T";
                     }
-                    
+
                     // 4. Set up Junctions
                     SetUpPrefabJunction(newMains[0], newMains[1], newTrack, xzOffset, "Split", true);
                     SetUpPrefabJunction(newMains[2], newMains[1], newTrack, xzOffset, "Merge", false);
 
-                    SetupComponent(newMains[1], newTrack, xzOffset);
+                    if(mode.IndexOf('M') == -1)SetupComponent(newMains[1], newTrack, xzOffset);
                     
                     AddedTracks.Add(newTrack);
                     AddedTracks.Add(newMains[1]);
@@ -197,7 +201,7 @@ namespace DoubleTrack;
                 else if (mode.IndexOf('J') != -1)
                 {
                     // Updated check: Mode, Name, Start, End, Offset, X, Z = 7 parts
-                    if (parts.Length < 9) 
+                    if (parts.Length < 10) 
                     {
                         Debug.LogWarning($"[DoubleTrack] Skipping invalid line (insufficient params): {entry}");
                         continue;
@@ -213,7 +217,8 @@ namespace DoubleTrack;
                     if (!bool.TryParse(parts[5], out bool mirror)) continue;
                     if (!float.TryParse(parts[6], out float searchX)) continue;
                     if (!float.TryParse(parts[7], out float searchZ)) continue;
-                    string junctionID = parts[8].Trim();
+                    if (!float.TryParse(parts[8], out float tanScale)) continue;
+                    string junctionID = parts[9].Trim();
                     
                     
                     Vector3 searchPos = new Vector3(searchX, 0, searchZ);
@@ -250,6 +255,9 @@ namespace DoubleTrack;
                     RailTrack endTrack = newJunction.outBranches[newJunction.outBranches[0].track.outBranch.track == null ? 0 : 1].track;
                     
                     ComplexJunctionEnds.Add(junctionID,endTrack);
+                    
+                    float mag = 1f/CalcTanSacle(flipDirection, splitTrack[1].curve);
+                    splitTrack[1].curve.ScaleEndTangents(!flipDirection, mag*tanScale);
 
                     allTracks.Remove(target);
                     allTracks.Add(splitTrack[0]);
@@ -334,6 +342,7 @@ namespace DoubleTrack;
                         if(invert) Array.Reverse(tempPoints);
                         foreach (BezierPoint point in tempPoints)
                         {
+                            
                             if(invert)(point.handle1,point.handle2) = (point.handle2, point.handle1);
                             
                             if(point.handle1.magnitude <= 1.1)
@@ -350,6 +359,13 @@ namespace DoubleTrack;
                     
                     curve.AddPoint(endPoint);
                     curve.resolution = 0.5f;
+                    
+                    /*
+                    float magS = 1/CalcTanSacle(true, curve);
+                    float magE = 1/CalcTanSacle(false, curve);
+                    curve.ScaleEndTangents(false,magS);
+                    curve.ScaleEndTangents(true,magE);
+                    */
                     curve.SetDirty();
                     
                     
@@ -400,6 +416,44 @@ namespace DoubleTrack;
                     if (mode.IndexOf('E') != -1)AddedTracks.Add(newTrack);
                 }
                 
+                else if (mode.IndexOf('N') != -1)
+                {
+                    if (parts.Length < 6) 
+                    {
+                        Debug.LogWarning($"[DoubleTrack] Skipping invalid line (insufficient params): {entry}");
+                        continue;
+                    }
+                    
+                    string targetName = parts[1].Trim();
+                    if (!int.TryParse(parts[2], out int insertAfter)) continue;
+                    if (!float.TryParse(parts[3], out float distance)) continue;
+                    if (!float.TryParse(parts[4], out float searchX)) continue;
+                    if (!float.TryParse(parts[5], out float searchZ)) continue;
+                    
+                    
+                    RailTrack template = allTracks
+                        .Where(t => t.name == targetName)
+                        .OrderBy(t => Vector2.Distance(new Vector2(t.transform.position.x, t.transform.position.z), new Vector2(searchX, searchZ)))
+                        .FirstOrDefault();
+
+                    if (template == null)
+                    {
+                        Debug.LogWarning($"[DoubleTrack] Could not find '{targetName}' near {searchX}, {searchZ}");
+                        continue;
+                    }
+
+                    BezierPoint startNode = template.curve.GetAnchorPoints()[insertAfter];
+                    BezierPoint newNode;
+                    if (mode.IndexOf('I') == -1)newNode = template.curve.InsertPointAtDistance(startNode, distance);
+                    else newNode = template.curve.InsertStraightExtension(startNode, distance);
+
+                    if (parts.Length>6&&float.TryParse(parts[6], out float scale))
+                    {
+                        newNode.handle1 *= scale;
+                        newNode.handle2 *= scale;
+                    }
+                }
+                
                 else if (mode.IndexOf('O') != -1)
                 {
                     if (parts.Length < 8) 
@@ -425,6 +479,15 @@ namespace DoubleTrack;
                     if (!RailTrackSceneManager.MovedObjectsRegistry.ContainsKey(sceneName)) RailTrackSceneManager.MovedObjectsRegistry.Add(sceneName, new List<RailTrackSceneManager.MovedGeometryObject>());
                     RailTrackSceneManager.MovedObjectsRegistry[sceneName].Add(movedGeometryObject);
                 }
+                
+                else if (mode.IndexOf("M") != -1)
+                {
+                    for (int i = 1; i < parts.Length; i++)
+                    {
+                        SignalFixer.AdditionalSignalsToFix.Add(parts[i].Trim());
+                        SignalFixer.AdditionalSignalsToFix.Add(parts[i].Trim()+"-D");
+                    }
+            }
             }
             
             
@@ -593,15 +656,20 @@ namespace DoubleTrack;
         }
 
 
-        private static void SnapTrackToPoint(RailTrack track, bool isStart, BezierPoint targetPoint)
+        private static float CalcTanSacle(bool isStart, BezierCurve curve)
         {
-            BezierCurve curve = track.curve;
-            // Use the prefab's actual handle length (~14m) instead of 40m to prevent 'looping'
             float tanScale = 4f;
             float mag;
             if(isStart) mag = Vector3.Distance(curve[0].position,curve[1].position)/tanScale;
             else mag = Vector3.Distance(curve[curve.pointCount-1].position,curve[curve.pointCount-2].position)/tanScale;
-            if (mag < 10f) mag = 30f;
+            return mag;
+        }
+        private static void SnapTrackToPoint(RailTrack track, bool isStart, BezierPoint targetPoint)
+        {
+            BezierCurve curve = track.curve;
+            // Use the prefab's actual handle length (~14m) instead of 40m to prevent 'looping'
+            
+            float mag = CalcTanSacle(isStart, curve);
             //mag = 40;
 
             if (isStart)
@@ -615,7 +683,7 @@ namespace DoubleTrack;
             else
             {
                 curve[curve.pointCount - 1].position = targetPoint.position;
-                // FIX: For the END of a track, we must mirror globalHandle2
+                //For the END of a track, we must mirror globalHandle2
                 Vector3 dir = (targetPoint.position - targetPoint.globalHandle2).normalized;
                 curve[curve.pointCount - 1].globalHandle1 = targetPoint.position - (dir * mag);
                 curve[curve.pointCount - 1].globalHandle2 = targetPoint.position + (dir * mag);
