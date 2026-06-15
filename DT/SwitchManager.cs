@@ -1,6 +1,8 @@
 using System.Collections;
 using dnlib;
+using DoubleTrack;
 using UnityEngine;
+using Settings = DoubleTrack.Settings;
 
 [DisallowMultipleComponent]
 public class SwitchManager : MonoBehaviour

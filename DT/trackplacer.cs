@@ -6,6 +6,7 @@ using DV.Signs;
 using UnityEngine;
 using HarmonyLib;
 using Ludiq;
+using Rewired.Utils.Platforms.Windows;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
@@ -163,7 +164,7 @@ namespace DoubleTrack;
                         newTrack.name = "DT-" + trackCounter + "-D";
                         newMains[1].name = "DT-" + trackCounter + "-T";
                     }
-
+                    
                     // 4. Set up Junctions
                     SetUpPrefabJunction(newMains[0], newMains[1], newTrack, xzOffset, "Split", true);
                     SetUpPrefabJunction(newMains[2], newMains[1], newTrack, xzOffset, "Merge", false);
@@ -489,8 +490,6 @@ namespace DoubleTrack;
                     }
             }
             }
-            
-            
             
             new GameObject("signPlacer", typeof(SignPlacer));
         }

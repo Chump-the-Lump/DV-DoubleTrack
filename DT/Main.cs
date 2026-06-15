@@ -69,6 +69,7 @@ namespace DoubleTrack
                 settings = UnityModManager.ModSettings.Load<Settings>(ModEntry);
                 if (settings != null)
                 {
+                    settings.Save(ModEntry);
                     ModEntry.Logger.Log("Loaded existing settings");
                 }
                 else
@@ -87,6 +88,7 @@ namespace DoubleTrack
             SceneManager.sceneLoaded += AllTracksPatch.LoadTracks;
             PersistentTerrainManager.Initialize();
             MultiplayerShim.Initialize(ModEntry);
+            
             return true;
         }
     }
