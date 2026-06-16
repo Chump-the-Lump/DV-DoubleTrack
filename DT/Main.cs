@@ -53,6 +53,7 @@ namespace DoubleTrack
         public static UnityModManager.ModEntry ModEntry;
         public static string TARGET_PATH = "";
         public static string CACHE_PATH = "";
+        private static Settings modSettings;
         public static bool Load(UnityModManager.ModEntry entry)
         {
             ModEntry = entry;
@@ -61,29 +62,31 @@ namespace DoubleTrack
             
             TARGET_PATH = Path.Combine(TrackPlacerEntry.ModEntry.Path, "target.csv");
             CACHE_PATH = Path.Combine(TrackPlacerEntry.ModEntry.Path, "terrain.dat");
-
-            Settings? settings = null;
+            
 
             try
             {
-                settings = UnityModManager.ModSettings.Load<Settings>(ModEntry);
+                Settings settings = UnityModManager.ModSettings.Load<Settings>(ModEntry);
                 if (settings != null)
                 {
-                    settings.Save(ModEntry);
+                    modSettings = settings;
+                    modSettings.Save(ModEntry);
                     ModEntry.Logger.Log("Loaded existing settings");
                 }
                 else
                 {
+                    modSettings = new Settings();
                     ModEntry.Logger.Log("Created new settings (no existing file)");
                 }
             }
             catch (Exception ex)
             {
+                modSettings = new Settings();
                 ModEntry.Logger.Log("Failed to load settings, using defaults: " + ex.Message);
             }
 
-            ModEntry.OnGUI = settings.Draw;
-            ModEntry.OnSaveGUI = settings.Save;
+            ModEntry.OnGUI = modSettings.Draw;
+            ModEntry.OnSaveGUI = modSettings.Save;
 
             SceneManager.sceneLoaded += AllTracksPatch.LoadTracks;
             PersistentTerrainManager.Initialize();
