@@ -354,6 +354,9 @@
       <Reference Include="sc.posteffects.runtime">
         <HintPath>..\..\DerailValley_Data\Managed\sc.posteffects.runtime.dll</HintPath>
       </Reference>
+      <Reference Include="Signals.Game">
+        <HintPath>..\..\Mods\DVSignals\Signals.Game.dll</HintPath>
+      </Reference>
       <Reference Include="SpriteLights">
         <HintPath>..\..\DerailValley_Data\Managed\SpriteLights.dll</HintPath>
       </Reference>

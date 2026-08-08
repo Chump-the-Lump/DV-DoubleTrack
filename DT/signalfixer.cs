@@ -11,35 +11,55 @@ namespace DoubleTrack;
 
 public static class SignalFixer
 {
+    public static TrackSpatialIndex SpatialIndex;
     static bool active   = false;
     public static List<string> AdditionalSignalsToFix = new List<string>();
 
     public static IEnumerator SignalFinder()
     {
+        SpatialIndex = new TrackSpatialIndex(cellSize: 100f);
+        SpatialIndex.BuildIndex(RailTrackRegistry.RailTracks);
+        
         if (active) yield break;
         active = true;
         UnityModManager.ModEntry SignalsMod = UnityModManager.FindMod("DVSignals");
         if (SignalsMod != null && SignalsMod.Active)
         {
             yield return new WaitUntil(() => GameObject.Find("[SignalManager]") != null);
-            FixSignals();
+            foreach (RailTrack railTrack in RailTrackRegistry.RailTracks)
+            {
+                FixSignalsNew(railTrack);
+            }
         }
         active = false;
     }
+    
 
-    private static void FixSignals()
+    private static void FixSignalsNew(RailTrack railTrack)
     {
-        foreach (RailTrack railTrack in AllTracksPatch.AddedTracks)
+        List<GameObject> signals = new List<GameObject>();
+        foreach (Transform child in railTrack.transform)
         {
-            FixSignalStandard(railTrack);
+            if (!child.name.Contains("Signal")) continue;
+            signals.Add(child.gameObject);
         }
-        
-        foreach (RailTrack railTrack in RailTrackRegistry.RailTracks)
+
+        foreach (GameObject signal in signals)
         {
-            AddListeners(railTrack);
+            Vector3 position = signal.transform.position;
+            position -= signal.transform.right * 3;
+            position -= WorldMover.currentMove;
+
+            RailTrack closestTrack = SpatialIndex.GetTrackClosestToFast(position, 0, out _);
+            
+            if(closestTrack != railTrack)
+            {
+                MirrorSignal(signal);
+            }
         }
     }
 
+    /*
     private static void AddListeners(RailTrack railTrack)
     {
         foreach (Transform child in railTrack.transform)
@@ -92,7 +112,7 @@ public static class SignalFixer
             
         if(Vector3.Distance(signals[2].transform.position, signals[3].transform.position) > 40f)return;
         if(Vector3.Dot(signals[2].transform.forward,signals[3].transform.position-signals[2].transform.position) > 0) SwapSignalPositions(signals[2], signals[3]);
-    }
+    }*/
         
     private static void MirrorSignal(GameObject signal)
     {

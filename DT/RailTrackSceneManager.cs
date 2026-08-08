@@ -5,6 +5,7 @@ using DV.CabControls.VRTK;
 using DV.Utils;
 using HarmonyLib;
 using Rewired;
+using Object = UnityEngine.Object;
 
 namespace DoubleTrack
 {
@@ -16,6 +17,9 @@ namespace DoubleTrack
             public Vector3 OldPosition;
             public string Name;
         }
+
+        public static HashSet<string> RemovedScenes = new HashSet<string>();
+        
 
         public static Dictionary<string, List<MovedGeometryObject>> MovedObjectsRegistry = new Dictionary<string, List<MovedGeometryObject>>();
         private SceneSplitManager _sector;
@@ -176,6 +180,7 @@ namespace DoubleTrack
     {
         static void Postfix(SceneSplitManager __instance)
         {
+            if(RailTrackSceneManager.RemovedScenes.Contains(__instance.gameObject.name))__instance.gameObject.SetActive(false);
             if (__instance.GetComponent<RailTrackSceneManager>() == null)
                 __instance.gameObject.AddComponent<RailTrackSceneManager>();
         }

@@ -73,69 +73,53 @@ public static class BezierOffsetTool
 
         return newCurve;
     }
+    
+    public struct TrackSegmentData
+    {
+        public string TrackName;
+        public float[] Parameters;
+    }
 
-    public static Dictionary<string, float[]> ParseTrackData(string input)
+    public static List<TrackSegmentData> ParseTrackData(string input)
+    {
+        List<TrackSegmentData> result = new List<TrackSegmentData>();
+
+        if (string.IsNullOrEmpty(input)) return result;
+
+        MatchCollection blocks = Regex.Matches(input, @"\{([^\}]+)\}");
+
+        foreach (Match block in blocks)
         {
-            Dictionary<string, float[]> result = new Dictionary<string, float[]>();
+            string content = block.Groups[1].Value;
 
-            if (string.IsNullOrEmpty(input))
+            int openParen = content.IndexOf('(');
+            int closeParen = content.LastIndexOf(')');
+
+            if (openParen == -1 || closeParen == -1 || closeParen < openParen) continue;
+
+            string key = content.Substring(0, openParen).Trim();
+            string rawParams = content.Substring(openParen + 1, closeParen - openParen - 1);
+
+            List<float> parsedNumbers = new List<float>();
+            if (!string.IsNullOrWhiteSpace(rawParams))
             {
-                return result;
-            }
-
-            // Regex matches everything inside curly braces: {[#] name(p1;p2;...)}
-            // \{      : matches literal '{'
-            // ([^\}]+): captures everything that isn't a closing curly brace
-            // \}      : matches literal '}'
-            MatchCollection blocks = Regex.Matches(input, @"\{([^\}]+)\}");
-
-            foreach (Match block in blocks)
-            {
-                string content = block.Groups[1].Value; // Content inside -> "[#] Road 33(2;0;-10)"
-
-                // Find the opening and closing parentheses
-                int openParen = content.IndexOf('(');
-                int closeParen = content.LastIndexOf(')');
-
-                if (openParen == -1 || closeParen == -1 || closeParen < openParen)
-                {
-                    continue; // Skip if parentheses are missing or malformed
-                }
-
-                // Extract the key name (e.g., "[#] Road 33")
-                string key = content.Substring(0, openParen).Trim();
-
-                // Extract the raw parameters string inside the parentheses (e.g., "2;0;-10")
-                string rawParams = content.Substring(openParen + 1, closeParen - openParen - 1);
-
-                if (string.IsNullOrWhiteSpace(rawParams))
-                {
-                    result[key] = new float[0];
-                    continue;
-                }
-
-                // Split by semicolon
-                string[] tokens = rawParams.Split(';');
-                List<float> parsedNumbers = new List<float>();
-
-                foreach (string token in tokens)
+                foreach (string token in rawParams.Split(';'))
                 {
                     if (float.TryParse(token.Trim(), out float val))
-                    {
                         parsedNumbers.Add(val);
-                    }
-                    else
-                    {
-                        UnityEngine.Debug.LogWarning($"Failed to parse value '{token}' into an int for key '{key}'.");
-                    }
                 }
-
-                // Map it to the dictionary
-                result[key] = parsedNumbers.ToArray();
             }
 
-            return result;
+            // Add to list instead of overwriting dictionary key!
+            result.Add(new TrackSegmentData 
+            { 
+                TrackName = key, 
+                Parameters = parsedNumbers.ToArray() 
+            });
         }
+
+        return result;
+    }
     
     public static BezierPoint InsertPointAtDistance(this BezierCurve curve, BezierPoint startPoint, float distance)
 {
@@ -413,4 +397,60 @@ public static BezierPoint InsertStraightExtension(this BezierCurve curve, Bezier
         curve.SetDirty();
     }
     
+    public static void RotatePointHandles(BezierPoint point, Vector3 eulerAngles, bool useWorldSpace = false)
+    {
+        if (point == null) return;
+
+        // Temporarily disable handle auto-alignment while modifying vectors
+        BezierPoint.HandleStyle originalStyle = point.handleStyle;
+        point.handleStyle = BezierPoint.HandleStyle.None;
+
+        // 1. Calculate the rotation Quaternion
+        Quaternion rotation = Quaternion.Euler(eulerAngles);
+        if (!useWorldSpace)
+        {
+            // Align rotation with the point's local object orientation
+            rotation = point.transform.rotation * rotation * Quaternion.Inverse(point.transform.rotation);
+        }
+
+        // 2. Rotate handle1 vector relative to the anchor position
+        Vector3 h1Offset = point.globalHandle1 - point.position;
+        if (h1Offset.sqrMagnitude > 0.0001f)
+        {
+            point.globalHandle1 = point.position + (rotation * h1Offset);
+        }
+
+        // 3. Rotate handle2 vector relative to the anchor position
+        Vector3 h2Offset = point.globalHandle2 - point.position;
+        if (h2Offset.sqrMagnitude > 0.0001f)
+        {
+            point.globalHandle2 = point.position + (rotation * h2Offset);
+        }
+
+        // 4. Restore handle style
+        point.handleStyle = originalStyle;
+    }
+    
+    public static void MovePointNode(BezierPoint point, Vector3 offset, bool useWorldSpace = true)
+    {
+        if (point == null) return;
+
+        BezierPoint.HandleStyle originalStyle = point.handleStyle;
+        point.handleStyle = BezierPoint.HandleStyle.None;
+
+        Vector3 finalOffset = useWorldSpace ? offset : point.transform.rotation * offset;
+
+        // Cache handle vectors before moving anchor
+        Vector3 h1Vector = point.globalHandle1 - point.position;
+        Vector3 h2Vector = point.globalHandle2 - point.position;
+
+        // Shift anchor position
+        point.position += finalOffset;
+
+        // Re-assign handles relative to new position
+        point.globalHandle1 = point.position + h1Vector;
+        point.globalHandle2 = point.position + h2Vector;
+
+        point.handleStyle = originalStyle;
+    }
 }

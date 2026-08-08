@@ -39,7 +39,6 @@ public class MPConfig
             packet.Init();
             s.SendPacketToPlayer(packet, receiver);
             UnityEngine.Debug.Log("Sending DoubleTrack config to clients.");
-            TrackPlacerEntry.ModEntry.Logger.Log("Sending MU Settings of : \n Mode: "+packet.mode);
 
         }
     }
@@ -49,19 +48,21 @@ public class MPConfig
     private static void ConfigReceive(ConfigPacket packet)
     {
         UnityEngine.Debug.Log("Setting DoubleTrack config from server.");
-        TrackPlacerEntry.ModEntry.Logger.Log("Received Settings of : \n   Mode: "+packet.mode);
         
-        Settings.StaticMode = packet.mode;
+        Settings.StaticJunctionMode = packet.junctionMode;
+        Settings.LoadedTrackMode = packet.trackMode;
         
         Settings.UpdateSettings();
     }
     private class ConfigPacket : MPAPI.Interfaces.Packets.IPacket
     {
-        public Settings.JunctionMode mode { get; set; }
+        public Settings.JunctionMode junctionMode { get; set; }
+        public Settings.TrackMode trackMode { get; set; }
         
         public void Init()
         {
-            mode = Settings.StaticMode;
+            junctionMode = Settings.StaticJunctionMode;
+            trackMode = Settings.LoadedTrackMode;
         }
     }
 }

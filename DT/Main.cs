@@ -19,15 +19,25 @@ namespace DoubleTrack
             SpringLeft,
             RemoteDispatch
         }
+        
+        public enum TrackMode
+        {
+            Normal,
+            Hard
+        }
 
-        public static JunctionMode StaticMode;
+        public static JunctionMode StaticJunctionMode;
+        public static TrackMode StaticTrackMode;
+        public static TrackMode LoadedTrackMode;
 
-        [Draw("Junction Mode")] public JunctionMode Mode = JunctionMode.Normal;
+        [Draw("Junction Mode")] public JunctionMode JunctionModeSetting = JunctionMode.Normal;
+        [Draw("Track Layout")] public TrackMode TrackModeSetting = TrackMode.Normal;
 
         public override void Save(UnityModManager.ModEntry entry)
         {
             if(!MultiplayerShim.IsHost)return;
-            StaticMode = Mode;
+            StaticJunctionMode = JunctionModeSetting;
+            StaticTrackMode = TrackModeSetting;
             Save(this, entry);
             UpdateSettings();
             SaveSettings.Invoke();
@@ -88,7 +98,7 @@ namespace DoubleTrack
             ModEntry.OnGUI = modSettings.Draw;
             ModEntry.OnSaveGUI = modSettings.Save;
 
-            SceneManager.sceneLoaded += AllTracksPatch.LoadTracks;
+            SceneManager.sceneLoaded += TrackPlacer.LoadTracks;
             PersistentTerrainManager.Initialize();
             MultiplayerShim.Initialize(ModEntry);
             
