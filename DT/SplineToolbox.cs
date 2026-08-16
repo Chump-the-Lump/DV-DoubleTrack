@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
 using HarmonyLib;
+using Ludiq;
 using UnityEngine;
 
 public static class BezierOffsetTool
@@ -14,11 +15,27 @@ public static class BezierOffsetTool
     /// <param name="xzOffset">Distance to the side (relative to curve direction).</param>
     /// <param name="yOffset">Distance to move up or down (world Y-axis).</param>
     /// <returns>A new BezierCurve segment.</returns>
-    public static BezierCurve CreateParallelCopy(BezierCurve originalCurve, int startIndex, int endIndex, float xzOffset, float yOffset)
+    public static BezierCurve CreateParallelCopy(BezierCurve originalCurve, int startIndex, int endIndex, float xzOffset, float yOffset, GameObject newTrackGo)
     {
         // 1. Setup the new Curve Container
-        GameObject offsetGo = new GameObject($"{originalCurve.name}_Offset_XZ{xzOffset}_Y{yOffset}");
-        BezierCurve newCurve = offsetGo.AddComponent<BezierCurve>();
+        //RailTrack trackComponent = newTrackGo.GetComponent<RailTrack>();
+        //BezierCurve oldCurve = newTrackGo.GetComponent<BezierCurve>();
+        
+        BezierCurve newCurve = newTrackGo.GetOrAddComponent<BezierCurve>();
+        //if(trackComponent!= null)AccessTools.Field(typeof(RailTrack), "_curve").SetValue(trackComponent, newCurve);
+        
+        //UnityEngine.Object.Destroy(oldCurve);
+
+        BezierPoint[] points = newCurve.GetAnchorPoints();
+        BezierPoint[] pointsStrandedGo = newCurve.transform.GetComponentsInChildren<BezierPoint>();
+        
+        for (int i = 0; i < points.Length; i++)
+        {
+            newCurve.RemovePoint(points[i]);
+            UnityEngine.Object.Destroy(pointsStrandedGo[i].gameObject);
+        }
+        
+        newCurve.resolution = 0.5f;
         
         newCurve.resolution = originalCurve.resolution;
         newCurve.drawColor = Color.green;

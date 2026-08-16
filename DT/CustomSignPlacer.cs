@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using DoubleTrack;
@@ -49,21 +50,23 @@ public class CustomSignPlacer : MonoBehaviour
     public bool minimizeSpeedDifference = true;
     public bool placeTrackSigns = true;
     public bool placeJunctionSigns = true;
-
+    
     #endregion
+
+    public static List<GameObject> signs;
 
     #region Unity Lifecycle & Core Placement Entry
 
     private void Start()
     {
-        Debug.Log("[Double Track] Placing signs", this);
-        PlaceSigns();
-
-        StartCoroutine(SignalFixer.SignalFinder());
+        StartCoroutine(PlaceSigns());
     }
 
-    public List<GameObject> PlaceSigns()
+    public IEnumerator PlaceSigns()
     {
+        yield return new WaitForSeconds(1f);
+        Debug.Log("[Double Track] Placing signs");
+        
         // Clear existing generated signs if requested
         if (parentTo != null && clearParent)
         {
@@ -88,7 +91,7 @@ public class CustomSignPlacer : MonoBehaviour
                 noSignsTrackNameMarks.Any(mark => signData.GetTrack().name.StartsWith(mark)));
         }
 
-        return signDataList.Select(PlaceSign).ToList();
+        signs = signDataList.Select(PlaceSign).ToList();
     }
 
     private static readonly AccessTools.FieldRef<Sign, List<SignParameters>> GetSignParametersRef = 
@@ -296,7 +299,6 @@ public class CustomSignPlacer : MonoBehaviour
         }
 
         BezierCurve curve = j.inBranch.track.curve;
-        curve.dirty = true;
         
         bool reverse = !j.inBranch.first;
 

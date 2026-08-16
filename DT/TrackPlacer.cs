@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using DV.Signs;
 using HarmonyLib;
+using Ludiq;
 using Rewired.Utils.Platforms.Windows;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityModManagerNet;
 using Object = UnityEngine.Object;
+using Random = System.Random;
 
 namespace DoubleTrack;
 
@@ -27,7 +29,6 @@ public static class TrackPlacer
         AllTracksPatch.AddedJunctions = new List<Junction>();
         AllTracksPatch.ComplexJunctionEnds = new Dictionary<string, RailTrack>();
         RailTrackSceneManager.MovedObjectsRegistry.Clear();
-        SignalFixer.AdditionalSignalsToFix.Clear();
         AllTracksPatch.trackCounter = 0;
 
         AllTracksPatch.railwayGo = GameObject.Find("[railway]");
@@ -59,7 +60,6 @@ public static class TrackPlacer
                 if (mode.IndexOf('S') != -1) HandleSidingMode(parts, mode, entry, allTracks);
                 else if (mode.IndexOf('J') != -1) HandleJunctionMode(parts, mode, entry, allTracks);
                 else if (mode.IndexOf('T') != -1) HandleTrackSegmentMode(parts, mode, entry, allTracks);
-                else if (mode.IndexOf('Y') != -1) HandleYardMode(parts, mode, entry, allTracks);
                 else if (mode.IndexOf('N') != -1) HandleNodeInsertMode(parts, mode, entry, allTracks);
                 else if (mode.IndexOf('X') != -1) HandleRemoveMode(parts, entry, allTracks);
                 else if (mode.IndexOf('A') != -1) HandleTrackAbandonMode(parts,mode, entry, allTracks);
@@ -67,7 +67,6 @@ public static class TrackPlacer
                 else if (mode.IndexOf('t') != -1) HandleTransformNodeMode(parts, entry, allTracks);
                 else if (mode.IndexOf('O') != -1) HandleObjectOffsetMode(parts, entry);
                 else if (mode.IndexOf('C') != -1) HandleRemoveSceneMode(parts, entry);
-                else if (mode.IndexOf('M') != -1) HandleSignalFixerMode(parts);
             }
             catch (Exception e)
             {
@@ -76,6 +75,12 @@ public static class TrackPlacer
             }
         }
 
+        foreach (RailTrack track in  allTracks)
+        {
+            if (!track.name.Any(char.IsDigit)) track.name += " "+((int)track.transform.position.magnitude % 100);
+            AccessTools.Field(typeof(RailTrack), "pointSet").SetValue(track, null);
+        }
+        RailTrack.pointSets.Clear();
         new GameObject("signPlacer", typeof(CustomSignPlacer));
     }
 
@@ -131,7 +136,7 @@ public static class TrackPlacer
         newTrack.generateColliders = true;
         newTrack.name = targetName + "_Siding";
 
-        AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTrack, BezierOffsetTool.CreateParallelCopy(template.curve, startIdx, endIdx, xzOffset, 0));
+        BezierOffsetTool.CreateParallelCopy(template.curve, startIdx, endIdx, xzOffset, 0, newTrack.gameObject);
 
         newTrack.curve.transform.parent = newTrack.transform;
         newTrack.inBranch = new Junction.Branch();
@@ -143,7 +148,7 @@ public static class TrackPlacer
         RailTrack[] tempB = AllTracksPatch.SplitTrackForJunction(tempA[1], endIdx - startIdx);
         RailTrack[] newMains = new[] { tempA[0], tempB[0], tempB[1] };
 
-        Object.Destroy(tempA[1]);
+        Object.Destroy(tempA[1].gameObject);
 
         if (mode.IndexOf('M') == -1)
         {
@@ -192,7 +197,7 @@ public static class TrackPlacer
         if (!allTracks.Contains(newMains[0])) allTracks.Add(newMains[0]);
         if (!allTracks.Contains(newMains[2])) allTracks.Add(newMains[2]);
 
-        Object.Destroy(template);
+        Object.Destroy(template.gameObject);
     }
 
     // Mode 'J' - Complex Junction Setup
@@ -241,48 +246,11 @@ public static class TrackPlacer
 
         splitTrack[0].gameObject.name = targetName + "A";
         splitTrack[1].gameObject.name = targetName + "B";
-
-        if (mode.IndexOf("D") != -1)
-        {
-            RailTrack stubTarget = newJunction.outBranches[isDiverge ? 0 : 1].track;
-            RailTrack stubTrack = GameObject.Instantiate(target);
-            stubTrack.name = "StubTrack";
-
-            for(int i = 2; i < stubTrack.curve.pointCount; i++)
-            {
-                BezierPoint stubNode = stubTrack.curve.GetAnchorPoints()[i];
-                stubNode.curve.RemovePoint(i);
-                Object.Destroy(stubNode);
-            }
-            
-            stubTrack.curve.GetAnchorPoints()[0].position = stubTarget.curve.GetAnchorPoints()[1].position;
-            stubTrack.curve.GetAnchorPoints()[1].position = stubTarget.curve.GetAnchorPoints()[1].globalHandle2;
-            stubTrack.curve.SetDirty();
-
-            stubTrack.inJunction = null;
-            stubTrack.outJunction = null;
-            
-            stubTrack.inBranch = new Junction.Branch();
-            stubTrack.inBranch.track = stubTarget;
-            stubTrack.inBranch.first = false;
-            
-            stubTarget.outBranch.track = stubTrack;
-            stubTarget.outBranch.first = true;
-            
-            stubTrack.outBranch = null;
-
-            stubTrack.generateColliders = true;
-            allTracks.Add(stubTrack);
-            AllTracksPatch.AddedTracks.Add(stubTrack);
-            
-            AllTracksPatch.CreateBufferStop(stubTrack);
-            stubTrack.transform.SetParent(AllTracksPatch.railwayParent);
-            AccessTools.Field(typeof(RailTrack), "initialized").SetValue(stubTrack, false);
-            stubTrack.gameObject.SetActive(true);
-        }
+        
         
         foreach (RailTrack track in splitTrack)
         {
+            track.curve.SetDirty();
             track.curve.transform.parent = track.transform;
             track.transform.SetParent(AllTracksPatch.railwayParent);
             track.gameObject.SetActive(true);
@@ -307,7 +275,7 @@ public static class TrackPlacer
         }
 
         if (AllTracksPatch.AddedTracks.Contains(target)) AllTracksPatch.AddedTracks.Remove(target);
-        Object.Destroy(target);
+        Object.Destroy(target.gameObject);
     }
 
     // Mode 'T' - Custom Track Segment Generation
@@ -324,18 +292,38 @@ public static class TrackPlacer
         string name = parts[3].Trim();
         string points = parts[4].Trim();
 
+        RailTrack template = allTracks[0];
+        template.gameObject.SetActive(false);
+        RailTrack newTrack = Object.Instantiate(template);
+        template.gameObject.SetActive(true);
+        
         List<BezierOffsetTool.TrackSegmentData> pointsList = BezierOffsetTool.ParseTrackData(points);
-        BezierCurve curve = new GameObject("Curve").AddComponent<BezierCurve>();
+        BezierCurve curve = newTrack.GetComponent<BezierCurve>();
+        BezierPoint[] oldPoints = curve.GetAnchorPoints();
+        BezierPoint[] pointsStrandedGo = newTrack.transform.GetComponentsInChildren<BezierPoint>();
+        
+        for (int i = 0; i < oldPoints.Length; i++)
+        {
+            curve.RemovePoint(oldPoints[i]);
+            Object.Destroy(pointsStrandedGo[i].gameObject);
+        }
 
         BezierPoint startPoint = Object.Instantiate(AllTracksPatch.ComplexJunctionEnds[inTargetID].curve.Last(), curve.transform, true);
+        startPoint.handleStyle = BezierPoint.HandleStyle.Broken;
         BezierPoint endPoint = null;
 
-        if (outTargetID != "") endPoint = Object.Instantiate(AllTracksPatch.ComplexJunctionEnds[outTargetID].curve.Last(), curve.transform, true);
+        if (outTargetID != "")
+        {
+            endPoint = Object.Instantiate(AllTracksPatch.ComplexJunctionEnds[outTargetID].curve.Last(), curve.transform, true);
+            endPoint.handleStyle = BezierPoint.HandleStyle.Broken;
+        }
 
         startPoint.transform.localRotation = Quaternion.Euler(Vector3.zero);
         if (outTargetID != "") endPoint.transform.localRotation = Quaternion.Euler(Vector3.zero);
 
         curve.AddPoint(startPoint);
+        startPoint._curve = curve;
+        
         Vector3 searchPos = AllTracksPatch.ComplexJunctionEnds[inTargetID].transform.position;
 
         foreach (BezierOffsetTool.TrackSegmentData segment in pointsList)
@@ -380,7 +368,8 @@ public static class TrackPlacer
                 tan2Lenght *= -1;
             }
 
-            BezierCurve tempCurve = BezierOffsetTool.CreateParallelCopy(targetCurve, startIndex, endIndex, xzOffset, yOffset);
+            GameObject tempGO = new GameObject("temp");
+            BezierCurve tempCurve = BezierOffsetTool.CreateParallelCopy(targetCurve, startIndex, endIndex, xzOffset, yOffset, tempGO);
             BezierPoint[] tempPoints = tempCurve.GetAnchorPoints();
 
             if (invert) Array.Reverse(tempPoints);
@@ -396,26 +385,25 @@ public static class TrackPlacer
                 if (i == tempPoints.Length - 1) point.handle2 *= tan2Lenght;
 
                 curve.AddPoint(point);
+                point._curve = curve;
                 point.transform.parent = curve.transform;
             }
 
-            Object.Destroy(tempCurve);
+            Object.Destroy(tempGO);
         }
 
-        if (outTargetID != "") curve.AddPoint(endPoint);
+        if (outTargetID != "")
+        {
+            curve.AddPoint(endPoint);
+            endPoint._curve = curve;
+        }
 
         curve.resolution = 0.5f;
         curve.SetDirty();
 
-        RailTrack template = allTracks[0];
-        template.gameObject.SetActive(false);
-        RailTrack newTrack = Object.Instantiate(template);
-        template.gameObject.SetActive(true);
-
         newTrack.generateColliders = true;
         newTrack.name = name;
-
-        AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTrack, curve);
+        
 
         newTrack.curve.transform.parent = newTrack.transform;
         newTrack.inBranch = new Junction.Branch();
@@ -452,27 +440,6 @@ public static class TrackPlacer
 
         if (mode.IndexOf('E') != -1) AllTracksPatch.AddedTracks.Add(newTrack);
     }
-    // Mode 'Y' - Custom Yard Generation
-    private static void HandleYardMode(string[] parts, string mode, string entry, List<RailTrack> allTracks)
-    {
-        if (parts.Length < 10)
-        {
-            Debug.LogWarning($"[DoubleTrack] Skipping invalid line (insufficient params): {entry}");
-            return;
-        }
-
-        string yardID = parts[1].Trim();
-        if (!float.TryParse(parts[2], out float X1)) return;
-        if (!float.TryParse(parts[3], out float Y1)) return;
-        if (!float.TryParse(parts[4], out float Z1)) return;
-        if (!float.TryParse(parts[5], out float X2)) return;
-        if (!float.TryParse(parts[6], out float Y2)) return;
-        if (!float.TryParse(parts[7], out float Z2)) return;
-        if (!float.TryParse(parts[8], out float spacing)) return;
-        if (!int.TryParse(parts[9], out int tracks) || tracks <= 0) return;
-
-        //todo
-    }
 
     // Mode 'N' - Insert Curve Node
     private static void HandleNodeInsertMode(string[] parts, string mode, string entry, List<RailTrack> allTracks)
@@ -501,15 +468,17 @@ public static class TrackPlacer
         }
 
         BezierPoint startNode = template.curve.GetAnchorPoints()[insertAfter];
-        BezierPoint newNode = mode.IndexOf('I') == -1 
-            ? template.curve.InsertPointAtDistance(startNode, distance) 
-            : template.curve.InsertStraightExtension(startNode, distance);
+        BezierPoint newNode = mode.IndexOf('I') == -1 ? template.curve.InsertPointAtDistance(startNode, distance) : template.curve.InsertStraightExtension(startNode, distance);
 
+        
         if (parts.Length > 6 && float.TryParse(parts[6], out float scale))
         {
             newNode.handle1 *= scale;
             newNode.handle2 *= scale;
         }
+        
+        template.curve.SetDirty();
+        
     }
 
     // Mode 'X' - Remove Point or Track
@@ -537,7 +506,7 @@ public static class TrackPlacer
             return;
         }
 
-        if (removeAt == -1) Object.Destroy(template);
+        if (removeAt == -1) Object.Destroy(template.gameObject);
         else template.curve.RemovePoint(removeAt);
     }
 
@@ -594,7 +563,7 @@ public static class TrackPlacer
             newTrack.inJunction = null;
             newTrack.outJunction = null;
             
-            AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTrack, BezierOffsetTool.CreateParallelCopy(target.curve, 0, target.curve.pointCount-1, 0, 0));
+            BezierOffsetTool.CreateParallelCopy(target.curve, 0, target.curve.pointCount-1, 0, 0,newTrack.gameObject);
             
             if (target.inJunction != null)
             {
@@ -645,9 +614,10 @@ public static class TrackPlacer
         newTracks[1].railType.kinkFrequency *= 4;
         newTracks[1].railType.railMaterial = s_oldMat;
         
-        newTracks[1].name = "[Y]_[doubletrack]_[Abandoned-Track]";
+        newTracks[1].name = "[Y]_[doubletrack]_[Abandoned-0-Track]";
         
         //signal fix
+        /*
         UnityModManager.ModEntry SignalsMod = UnityModManager.FindMod("DVSignals");
         if (SignalsMod != null && SignalsMod.Active)
         {
@@ -659,11 +629,11 @@ public static class TrackPlacer
             {
                 AllTracksPatch.DisconnectTracks(newTracks[1], newTracks[2]);
             }
-        }
+        }*/
 
         if(newTracks[0]!=null)AllTracksPatch.CreateBufferStop(newTracks[0]);
         if(newTracks[2]!=null)AllTracksPatch.CreateBufferStop(newTracks[2], true);
-        Object.Destroy(target);
+        Object.Destroy(target.gameObject);
         
         foreach (RailTrack track in newTracks)
         {
@@ -806,17 +776,6 @@ public static class TrackPlacer
         string sceneName = parts[1].Trim();
         if (!RailTrackSceneManager.RemovedScenes.Contains(sceneName))
             RailTrackSceneManager.RemovedScenes.Add(sceneName);
-    }
-
-    // Mode 'M' - Signal Registration
-    private static void HandleSignalFixerMode(string[] parts)
-    {
-        for (int i = 1; i < parts.Length; i++)
-        {
-            string signalName = parts[i].Trim();
-            SignalFixer.AdditionalSignalsToFix.Add(signalName);
-            SignalFixer.AdditionalSignalsToFix.Add(signalName + "-D");
-        }
     }
 
     #endregion

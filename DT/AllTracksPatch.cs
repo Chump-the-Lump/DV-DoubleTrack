@@ -221,7 +221,7 @@ namespace DoubleTrack;
             }
 
             byte selectBranch = (byte)(defaultLeft ? 0 : 1);
-            junction.defaultSelectedBranch = selectBranch;
+            //junction.defaultSelectedBranch = selectBranch;
             junction.selectedBranch = selectBranch;
             
             prefabThrough.generateColliders = true;
@@ -296,12 +296,10 @@ namespace DoubleTrack;
                 newTracks[i].name += $"{i + Index}";
             }
 
-            AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTracks[0],
-                BezierOffsetTool.CreateParallelCopy(track.curve, 0, Index, 0, 0));
+            AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTracks[0], BezierOffsetTool.CreateParallelCopy(track.curve, 0, Index, 0, 0, newTracks[0].gameObject));
             newTracks[0].outJunction = null;
 
-            AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTracks[1],
-                BezierOffsetTool.CreateParallelCopy(track.curve, Index, track.curve.pointCount - 1, 0, 0));
+            AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTracks[1], BezierOffsetTool.CreateParallelCopy(track.curve, Index, track.curve.pointCount - 1, 0, 0, newTracks[1].gameObject));
             newTracks[1].inJunction = null;
 
 
