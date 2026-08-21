@@ -78,9 +78,9 @@ public static class TrackPlacer
         foreach (RailTrack track in  allTracks)
         {
             if (!track.name.Any(char.IsDigit)) track.name += " "+((int)track.transform.position.magnitude % 100);
-            AccessTools.Field(typeof(RailTrack), "pointSet").SetValue(track, null);
+            //AccessTools.Field(typeof(RailTrack), "pointSet").SetValue(track, null);
         }
-        RailTrack.pointSets.Clear();
+        //RailTrack.pointSets.Clear();
         new GameObject("signPlacer", typeof(CustomSignPlacer));
     }
 
