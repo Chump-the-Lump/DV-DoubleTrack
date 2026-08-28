@@ -24,17 +24,15 @@ public static class WorldStateFixer
     [HarmonyPostfix]
     public static void PostFix(StartGameData_FromSaveGame __instance)
     {
-        JProperty carBlockProperty = __instance.snapshot.Data.Properties().FirstOrDefault(p => p.Name.StartsWith("Cars#"));
-        if(__instance.GetSaveGameData().GetJObject(SaveGameKeys.Cars) != null)
+        JProperty? carBlockProperty = __instance.snapshot?.Data?.Properties().FirstOrDefault(p => p.Name.StartsWith("Cars#"));
+        if(carBlockProperty == null || __instance.snapshot == null || __instance.GetSaveGameData()?.GetJObject(SaveGameKeys.Cars) != null)
         {
             return;
         }
         
         carBlockProperty.Value["trackHash"] = RailTrackRegistryBase.Instance.TracksHash;
 
-        JArray carsArray = ((JObject)carBlockProperty.Value)["carsData"] as JArray;
-
-        if (carsArray != null)
+        if (((JObject)carBlockProperty.Value)["carsData"] is JArray carsArray)
         {
             
             for (int i = carsArray.Count - 1; i >= 0; i--)
@@ -46,7 +44,7 @@ public static class WorldStateFixer
             }
         }
 
-        __instance.snapshot.Data.Add(SaveGameKeys.Cars, carBlockProperty.Value.DeepClone());
+        __instance.snapshot?.Data?.Add(SaveGameKeys.Cars, carBlockProperty.Value.DeepClone());
         carBlockProperty.Remove();
 
         
