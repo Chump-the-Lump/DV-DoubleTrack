@@ -227,6 +227,7 @@ public static class BezierOffsetTool
     newPoint.globalHandle2 = r1;
 
     segmentEnd.globalHandle1 = q2;
+    newPoint.handleStyle = BezierPoint.HandleStyle.Broken;
 
     curve.SetDirty();
 
@@ -332,7 +333,9 @@ public static BezierPoint InsertStraightExtension(this BezierCurve curve, Bezier
             newPoint.globalHandle2 = newPointPos + (tangentDirection * (distance * 0.33f));
             // segmentEnd.globalHandle1 stays exactly as it was
         }
+        newPoint.handleStyle = BezierPoint.HandleStyle.Broken;
 
+        
         curve.SetDirty();
         return newPoint;
     }

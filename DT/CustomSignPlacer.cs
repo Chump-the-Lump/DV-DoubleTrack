@@ -399,7 +399,6 @@ public class CustomSignPlacer : MonoBehaviour
     {
         List<BezierArcApproximation.Arc> arcs = new List<BezierArcApproximation.Arc>();
         BezierArcApproximation.CalculateArcs(curve, error, arcs);
-
         if (reverse)
         {
             arcs.Reverse();
@@ -639,7 +638,8 @@ public class CustomSignPlacer : MonoBehaviour
             if (minRadius < 360f) return 70f;
             if (minRadius < 700f) return 80f;
             if (minRadius < 900f) return 90f;
-            return minRadius < 1200f ? 100f : 120f;
+            if (minRadius < 1000f) return 100f;
+            return minRadius < 1200f ? 110f : 120f;
         }
 
         public float GetGradeAngle()
