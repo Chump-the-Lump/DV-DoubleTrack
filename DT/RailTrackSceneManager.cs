@@ -98,7 +98,7 @@ namespace DoubleTrack
                 foreach (MovedGeometryObject movedGeometryObject in movedGeometryObjects)
                 {
                     FindClosestChildByName(transform, movedGeometryObject.Name, movedGeometryObject.OldPosition).transform.localPosition = movedGeometryObject.NewPosition;
-                    Debug.Log("Moved obj " + movedGeometryObject.Name);
+                    //Debug.Log("Moved obj " + movedGeometryObject.Name);
                 }
             }
         }
