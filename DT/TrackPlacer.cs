@@ -43,7 +43,8 @@ public static class TrackPlacer
         if(MultiplayerShim.IsHost) Settings.LoadedTrackMode = Settings.StaticTrackMode;
         
         bool hardMode = Settings.LoadedTrackMode == Settings.TrackMode.Hard;
-
+        
+        
         foreach (string entry in targets)
         {
             try
@@ -77,10 +78,11 @@ public static class TrackPlacer
 
         foreach (RailTrack track in  allTracks)
         {
-            if (!track.name.Any(char.IsDigit)) track.name += " "+((int)track.transform.position.magnitude % 100);
-            //AccessTools.Field(typeof(RailTrack), "pointSet").SetValue(track, null);
+            if (!(track.name.Any(char.IsDigit)||track.name.Contains("[Y]"))) track.name += " "+((int)track.transform.position.magnitude % 100);
+            AccessTools.Field(typeof(RailTrack), "pointSet").SetValue(track, null);
+            track.gameObject.SetActive(true);
         }
-        //RailTrack.pointSets.Clear();
+        RailTrack.pointSets.Clear();
         new GameObject("signPlacer", typeof(CustomSignPlacer));
     }
 
@@ -178,13 +180,12 @@ public static class TrackPlacer
         AllTracksPatch.AddedTracks.Add(newMains[1]);
 
         newTrack.transform.SetParent(AllTracksPatch.railwayParent);
-        newTrack.gameObject.SetActive(true);
 
         foreach (RailTrack track in newMains)
         {
             track.curve.transform.parent = track.transform;
             track.transform.SetParent(AllTracksPatch.railwayParent);
-            track.gameObject.SetActive(true);
+            AccessTools.Field(typeof(RailTrack), "pointSet").SetValue(track, null);
         }
 
         allTracks.Remove(template);
@@ -240,9 +241,9 @@ public static class TrackPlacer
 
         Junction newJunction;
         if (!isDiverge)
-            newJunction = AllTracksPatch.SetUpPrefabJunction(splitTrack[0], splitTrack[1], null, offset, "Complex", flipDirection, mode.IndexOf('M') == -1, junctionID, defaultLeft: mode.IndexOf('I') != -1);
+            newJunction = AllTracksPatch.SetUpPrefabJunction(splitTrack[0], splitTrack[1], null, offset, "Complex", flipDirection, mode.IndexOf('M') == -1, junctionID, defaultLeft: mode.IndexOf('I') != -1, outer: mode.IndexOf('o') != -1);
         else
-            newJunction = AllTracksPatch.SetUpPrefabJunction(splitTrack[0], null, splitTrack[1], offset, "Complex", flipDirection, mode.IndexOf('M') == -1, junctionID, defaultLeft: mode.IndexOf('I') != -1);
+            newJunction = AllTracksPatch.SetUpPrefabJunction(splitTrack[0], null, splitTrack[1], offset, "Complex", flipDirection, mode.IndexOf('M') == -1, junctionID, defaultLeft: mode.IndexOf('I') != -1, outer: mode.IndexOf('o') != -1);
 
         splitTrack[0].gameObject.name = targetName + "A";
         splitTrack[1].gameObject.name = targetName + "B";
@@ -253,7 +254,6 @@ public static class TrackPlacer
             track.curve.SetDirty();
             track.curve.transform.parent = track.transform;
             track.transform.SetParent(AllTracksPatch.railwayParent);
-            track.gameObject.SetActive(true);
         }
 
         RailTrack endTrack = newJunction.outBranches[newJunction.outBranches[0].track.outBranch.track == null ? 0 : 1].track;
@@ -400,7 +400,7 @@ public static class TrackPlacer
 
         curve.resolution = 0.5f;
         curve.SetDirty();
-
+        
         newTrack.generateColliders = true;
         newTrack.name = name;
         
@@ -434,7 +434,6 @@ public static class TrackPlacer
         }
 
         newTrack.transform.SetParent(AllTracksPatch.railwayParent);
-        newTrack.gameObject.SetActive(true);
 
         allTracks.Add(newTrack);
 
@@ -640,7 +639,6 @@ public static class TrackPlacer
             if(track==null)continue;
             track.curve.transform.parent = track.transform;
             track.transform.SetParent(AllTracksPatch.railwayParent);
-            track.gameObject.SetActive(true);
         }
     }
     
@@ -728,8 +726,8 @@ public static class TrackPlacer
                 node.handle2 *= sy;
                 break;
         }
-
-        template.curve.dirty = true;
+        
+        template.curve.SetDirty();
     }
 
     // Mode 'O' - Offset Geometry Objects across Scenes

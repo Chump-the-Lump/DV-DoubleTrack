@@ -21,7 +21,7 @@ public class SwitchManager : MonoBehaviour
     public void Init()
     {
         if(junction==null)return;
-        if (DoubleTrack.Settings.StaticJunctionMode == DoubleTrack.Settings.JunctionMode.SpringRight)
+        /*if (DoubleTrack.Settings.StaticJunctionMode == DoubleTrack.Settings.JunctionMode.SpringRight)
         {
             if(MultiplayerShim.IsHost)junction.Switch(Junction.SwitchMode.NO_SOUND, (byte)junction.defaultSelectedBranch);
             VisualSwitchEditor.DisableLever(junction);
@@ -29,7 +29,8 @@ public class SwitchManager : MonoBehaviour
         {
             if(MultiplayerShim.IsHost)junction.Switch(Junction.SwitchMode.NO_SOUND, (byte) ((uint) junction.defaultSelectedBranch + 1U));
             VisualSwitchEditor.DisableLever(junction);
-        }else if (DoubleTrack.Settings.StaticJunctionMode == DoubleTrack.Settings.JunctionMode.RemoteDispatch)
+        }else */
+        if (DoubleTrack.Settings.StaticJunctionMode == DoubleTrack.Settings.JunctionMode.RemoteDispatch)
         {
             VisualSwitchEditor.DisableLever(junction);
         }
@@ -53,13 +54,13 @@ public class SwitchManager : MonoBehaviour
         
         switch (DoubleTrack.Settings.StaticJunctionMode)
         {
-            case DoubleTrack.Settings.JunctionMode.SpringLeft:
+            /*case DoubleTrack.Settings.JunctionMode.SpringLeft:
                 if(branch != (byte)junction.defaultSelectedBranch)junction.Switch(Junction.SwitchMode.NO_SOUND, (byte)junction.defaultSelectedBranch);
                 break;
             
             case DoubleTrack.Settings.JunctionMode.SpringRight:
                 if(branch != (byte) ((uint) junction.defaultSelectedBranch + 1U))junction.Switch(Junction.SwitchMode.NO_SOUND, (byte) ((uint) junction.defaultSelectedBranch + 1U));
-                break;
+                break;*/
             
             case DoubleTrack.Settings.JunctionMode.RemoteDispatch:
                 if(mode == Junction.SwitchMode.FORCED)

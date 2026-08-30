@@ -1,7 +1,6 @@
 ﻿
 using DV;
 using DV.CabControls;
-using DV.CabControls.NonVR;
 using DV.Interaction;
 using DV.Signs;
 using DV.TerrainTools;
@@ -83,11 +82,15 @@ namespace DoubleTrack;
         }
 
 
-        public static Junction SetUpPrefabJunction(RailTrack anchor, RailTrack mainMid, RailTrack siding, float xzOffset, string name, bool isDiverge, bool manage = true, string id = "", bool defaultLeft = true)
+        public static Junction SetUpPrefabJunction(RailTrack anchor, RailTrack mainMid, RailTrack siding, float xzOffset, string name, bool isDiverge, bool manage = true, string id = "", bool defaultLeft = true, bool outer = false)
         {
             string side = (xzOffset > 0) ^ !isDiverge ? "left" : "right";
+            string search = side;
+            int maxNameChars = 100;
+            if (outer ^ side == "left") search += "-o";
+            else maxNameChars = 10;
 
-            GameObject template = GameObject.FindObjectsOfType<GameObject>().FirstOrDefault(go => go.name.StartsWith("junc-" + side) && go.transform.parent.name == "[railway]");
+            GameObject template = GameObject.FindObjectsOfType<GameObject>().FirstOrDefault(go => go.name.Length <= maxNameChars && go.name.StartsWith("junc-" + search) && go.transform.parent.name == "[railway]");
             
             
             template.SetActive(false);
@@ -117,14 +120,14 @@ namespace DoubleTrack;
             visualSwitch.junction = junction;
             visualSwitch.animator = juncGroup.GetComponent<Animator>();
 
-            Transform lever = juncGroup.GetComponentsInChildren<ButtonNonVR>(true).FirstOrDefault()?.transform;
+            Transform lever = juncGroup.GetComponentsInChildren<ButtonBase>(true).FirstOrDefault()?.transform;
             if (lever != null)
             {
                 // Remove ALL instances to ensure a clean slate
                 var existingHandlers = lever.GetComponents<GrabHandlerButton>();
                 foreach (var h in existingHandlers) Object.DestroyImmediate(h);
 
-                var existingButtons = lever.GetComponents<ButtonNonVR>();
+                var existingButtons = lever.GetComponents<ButtonBase>();
                 foreach (var b in existingButtons) Object.DestroyImmediate(b);
             }
 
@@ -257,7 +260,6 @@ namespace DoubleTrack;
             // Use the prefab's actual handle length (~14m) instead of 40m to prevent 'looping'
             
             float mag = CalcTanSacle(isStart, curve);
-            //mag = 40;
 
             if (isStart)
             {
@@ -275,8 +277,6 @@ namespace DoubleTrack;
                 curve[curve.pointCount - 1].globalHandle1 = targetPoint.position - (dir * mag);
                 curve[curve.pointCount - 1].globalHandle2 = targetPoint.position + (dir * mag);
             }
-
-            curve.dirty = true;
         }
 
 
@@ -296,12 +296,25 @@ namespace DoubleTrack;
                 newTracks[i].name += $"{i + Index}";
             }
 
-            AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTracks[0], BezierOffsetTool.CreateParallelCopy(track.curve, 0, Index, 0, 0, newTracks[0].gameObject));
+            AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTracks[0], null); 
+            BezierOffsetTool.CreateParallelCopy(track.curve, 0, Index, 0, 0, newTracks[0].gameObject);
+
             newTracks[0].outJunction = null;
 
-            AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTracks[1], BezierOffsetTool.CreateParallelCopy(track.curve, Index, track.curve.pointCount - 1, 0, 0, newTracks[1].gameObject));
-            newTracks[1].inJunction = null;
+            AccessTools.Field(typeof(RailTrack), "_curve").SetValue(newTracks[1], null); 
+            BezierOffsetTool.CreateParallelCopy(track.curve, Index, track.curve.pointCount - 1, 0, 0, newTracks[1].gameObject);
 
+            newTracks[1].inJunction = null;
+            
+            for (int i = 0; i < newTracks.Length; i++)
+            {
+                BezierPoint[] pointsStrandedGo = newTracks[i].transform.GetComponentsInChildren<BezierPoint>();
+                BezierCurve newCurve = newTracks[i].transform.GetComponent<BezierCurve>();
+                for (int j = 0; j < pointsStrandedGo.Length; j++)
+                {
+                    if(!newCurve.GetAnchorPoints().Contains(pointsStrandedGo[j])) Object.DestroyImmediate(pointsStrandedGo[j].gameObject);
+                }
+            }
 
             newTracks[0].outBranch.track = newTracks[1];
             newTracks[0].outBranch.first = true;
@@ -337,92 +350,11 @@ namespace DoubleTrack;
                     newTracks[1].outJunction.outBranches[1].track = newTracks[1];
             }
             
-
-            for (int i = 0; i < newTracks.Length; i++)
-            {
-                if (RailTrack.pointSets.ContainsKey(newTracks[i])) RailTrack.pointSets.Remove(newTracks[i]);
-            }
-            
             newTracks[1].generateColliders = true;
-
+            
             return newTracks;
         }
-
-        /*
-        public static void SetupComponent(RailTrack main, RailTrack side, float offset)
-        {
-            DoubleRailTrack mainTrack = main.AddComponent<DoubleRailTrack>();
-            DoubleRailTrack sideTrack = side.AddComponent<DoubleRailTrack>();
-            
-            mainTrack.IsSiding = false;
-            sideTrack.IsSiding = true;
-            
-            mainTrack.Offset = offset;
-            sideTrack.Offset = offset;
-
-            mainTrack.ThisRailTrack = main;
-            sideTrack.ThisRailTrack = side;
-            
-            mainTrack.OtherRailTrack = side;
-            sideTrack.OtherRailTrack = main;
-        }*/
-
-        private static void LogAllComponents(GameObject root, string junctionId)
-        {
-            Debug.Log($"[DoubleTrack] --- Component Map for {junctionId} ---");
-
-            // Get all components in the root and all children
-            Component[] allComponents = root.GetComponentsInChildren<Component>(true);
-
-            foreach (var comp in allComponents)
-            {
-                if (comp == null) continue; // Skip missing scripts
-
-                // Build the child path for clarity
-                string path = comp.gameObject.name;
-                Transform parent = comp.transform.parent;
-                while (parent != null && parent != root.transform.parent)
-                {
-                    path = parent.name + "/" + path;
-                    parent = parent.parent;
-                }
-
-                Debug.Log($"[DoubleTrack] Object: [{path}] | Component: {comp.GetType().Name}");
-            }
-
-            Debug.Log($"[DoubleTrack] --- End Map for {junctionId} ---");
-        }
         
-        public static void DisconnectTracks(RailTrack trackA, RailTrack trackB)
-        {
-            if (trackA == null || trackB == null) return;
-                    
-
-            // Check trackA's IN branch
-            if (trackA.inBranch != null && trackA.inBranch.track == trackB)
-            {
-                trackA.inBranch = null;
-            }
-
-            // Check trackA's OUT branch
-            if (trackA.outBranch != null && trackA.outBranch.track == trackB)
-            {
-                trackA.outBranch = null;
-            }
-
-            // Check trackB's IN branch
-            if (trackB.inBranch != null && trackB.inBranch.track == trackA)
-            {
-                trackB.inBranch = null;
-            }
-
-            // Check trackB's OUT branch
-            if (trackB.outBranch != null && trackB.outBranch.track == trackA)
-            {
-                trackB.outBranch = null;
-            }
-                
-        }
 
         [HarmonyPatch(typeof(RailwayMeshGenerator), "ScheduleGenerateBaseAndRail")]
         public static class ScheduleGenerateBaseAndRail_Patch
@@ -502,4 +434,5 @@ namespace DoubleTrack;
                 return result;
             }
         }
+        
     }

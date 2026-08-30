@@ -15,8 +15,8 @@ namespace DoubleTrack
         public enum JunctionMode
         {
             Normal,
-            SpringRight,
-            SpringLeft,
+            //SpringRight,
+            //SpringLeft,
             RemoteDispatch
         }
         

@@ -139,12 +139,6 @@ public static class PersistentTerrainManager
             UnityEngine.Debug.LogError($"[DoubleTrack] CacheLoad failed for {coord}");
             UnityEngine.Debug.LogException(e);
         }
-        /*
-        RelevantTracks = IsTileNearTrack(coord);
-        if(RelevantTracks.Count == 0) return;
-        Debug.LogWarning($"[DoubleTrack] Failed to find cached tile at {coord}");
-        ProcessTileSync(gridCell);
-        */
     }
 
 
