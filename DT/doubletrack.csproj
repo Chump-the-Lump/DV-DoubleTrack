@@ -767,4 +767,8 @@
       </Reference>
     </ItemGroup>
 
+    <ItemGroup>
+      <EmbeddedResource Include="Books\*.json" LogicalName="DoubleTrack.Books.%(Filename)%(Extension)" />
+    </ItemGroup>
+
 </Project>
